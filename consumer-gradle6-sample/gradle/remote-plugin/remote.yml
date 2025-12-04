@@ -1,0 +1,42 @@
+```
+# Remote plugin configuration example
+# Supported placeholders:
+#   - ${service}            : current Gradle project name
+#   - ${REMOTE_BASE_DIR}    : value of remote.base.dir
+#   - ${remote.base.dir}    : same as above
+
+jenkins:
+  url: "https://ci.jenkins.io"
+  user: "test_user"
+  token: "test_token"
+  # 针对你的Jenkins结构
+  jobs:
+    test: "东箭-后端(Test环境)"
+
+# Environment configurations
+# Each environment can have its own settings
+environments:
+  # Development environment configuration (from gradle-dev.properties)
+  dev:
+    remote:
+      server: localhost
+      base:
+        dir: /tmp/consumer-app
+
+# Service ports configuration (previously in service-ports.json)
+service:
+  ports:
+    app: 8080
+  start:
+    command: $REMOTE_BASE_DIR/$SERVICE_NAME/$SERVICE_NAME-start.sh
+  env:
+    JAVA_TOOL_OPTIONS: -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=3$SERVICE_PORT
+
+# Configure log file pattern for logTask (logTo<Profile>)
+# Default resolves to: ${REMOTE_BASE_DIR}/../logs/${service}.log
+log:
+  filePattern: ${REMOTE_BASE_DIR}/../logs/${service}.log
+
+# Alternative example:
+# log:
+#   filePattern: /var/log/services/${service}.log

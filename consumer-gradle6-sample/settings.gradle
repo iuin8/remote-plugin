@@ -1,0 +1,22 @@
+pluginManagement {
+    def secretsFile = new File(settings.rootDir.parentFile, "support-tools/secrets/gradle/${rootProject.name}/secrets.properties")
+    if (secretsFile.exists()) {
+        def props = new Properties()
+        secretsFile.withInputStream { props.load(it) }
+        props.each { k, v -> settings.ext[k] = v }
+    }
+    repositories {
+        maven {
+            url 'https://packages.aliyun.com/61581a3190f3ca58306f472f/maven/iuin'
+            credentials {
+                username = (settings.hasProperty('ALIYUN_USERNAME') ? settings.ALIYUN_USERNAME : System.getenv('ALIYUN_USERNAME'))
+                password = (settings.hasProperty('ALIYUN_PASSWORD') ? settings.ALIYUN_PASSWORD : System.getenv('ALIYUN_PASSWORD'))
+            }
+        }
+        gradlePluginPortal()
+    }
+    includeBuild('..')
+}
+
+rootProject.name = 'consumer-gradle6-sample'
+include 'app'

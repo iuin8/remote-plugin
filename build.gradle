@@ -1,0 +1,117 @@
+plugins {
+    id 'org.jetbrains.kotlin.jvm' version '1.9.24'
+    id 'java-gradle-plugin'
+    id 'maven-publish'
+    id 'com.gradle.plugin-publish' version '1.2.1'
+}
+
+group = 'io.github.iuin8'
+version = '0.1.37.6'
+
+def secretsFile = file("support-tools/secrets/gradle/${rootProject.name}/secrets.properties")
+if (secretsFile.exists()) {
+    def props = new Properties()
+    secretsFile.withInputStream { props.load(it) }
+    props.each { k, v -> project.ext[k] = v }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation gradleApi()
+    // 移除 Jackson 依赖，避免 Gradle 6 对 classfile(major 61) 的兼容问题
+}
+
+gradlePlugin {
+    // website = 'https://github.com/iuin8/remote-plugin'  // Gradle 6 兼容性
+    // vcsUrl = 'https://github.com/iuin8/remote-plugin.git'  // Gradle 6 兼容性
+    plugins {
+        remote {
+            id = "io.github.iuin8.remote"
+            implementationClass = "io.github.iuin8.remote.RemotePlugin"
+            displayName = "Remote Exec Plugin"
+            description = "Executes local and remote shell commands for deployment pipelines"
+            // tags = ['remote', 'deployment', 'shell', 'ssh', 'jenkins']  // Gradle 6 兼容性
+        }
+    }
+}
+
+publishing {
+    repositories {
+        // Releases 仓库（遵循 README 的安全配置方式）
+        maven {
+            name = 'AliyunReleases'
+            url = uri(findProperty('ALIYUN_RELEASE_URL') ?: System.getenv('ALIYUN_RELEASE_URL') ?: 'https://packages.aliyun.com/maven/repository/<namespace>/releases/')
+            allowInsecureProtocol = false
+            credentials {
+                username = findProperty('ALIYUN_USERNAME') ?: System.getenv('ALIYUN_USERNAME')
+                password = findProperty('ALIYUN_PASSWORD') ?: System.getenv('ALIYUN_PASSWORD')
+            }
+        }
+        // Snapshots 仓库（遵循 README 的安全配置方式）
+        maven {
+            name = 'AliyunSnapshots'
+            url = uri(findProperty('ALIYUN_SNAPSHOT_URL') ?: System.getenv('ALIYUN_SNAPSHOT_URL') ?: 'https://packages.aliyun.com/maven/repository/<namespace>/snapshots/')
+            allowInsecureProtocol = false
+            credentials {
+                username = findProperty('ALIYUN_USERNAME') ?: System.getenv('ALIYUN_USERNAME')
+                password = findProperty('ALIYUN_PASSWORD') ?: System.getenv('ALIYUN_PASSWORD')
+            }
+        }
+        // Nexus 快照仓库
+        maven {
+            name = 'NexusSnapshots'
+            url = uri(findProperty('NEXUS_SNAPSHOT_URL') ?: System.getenv('NEXUS_SNAPSHOT_URL') ?: '<domain>/repository/maven-snapshots/')
+            allowInsecureProtocol = true
+            credentials {
+                username = findProperty('NEXUS_USERNAME') ?: System.getenv('NEXUS_USERNAME')
+                password = findProperty('NEXUS_PASSWORD') ?: System.getenv('NEXUS_PASSWORD')
+            }
+        }
+        // Nexus 正式版仓库
+        maven {
+            name = 'NexusReleases'
+            url = uri(findProperty('NEXUS_RELEASE_URL') ?: System.getenv('NEXUS_RELEASE_URL') ?: '<domain>/repository/maven-releases/')
+            allowInsecureProtocol = true
+            credentials {
+                username = findProperty('NEXUS_USERNAME') ?: System.getenv('NEXUS_USERNAME')
+                password = findProperty('NEXUS_PASSWORD') ?: System.getenv('NEXUS_PASSWORD')
+            }
+        }
+    }
+}
+
+defaultTasks 'build'
+
+// 专门发布到Nexus仓库的任务
+task publishToNexus {
+    group = 'publishing'
+    description = 'Publishes all Maven publications to Nexus repository'
+    // 依赖于Gradle自动生成的发布任务
+    dependsOn tasks.matching { task ->
+        task.name.endsWith('PublicationToNexusSnapshotsRepository')
+    }
+}
+
+// 发布到 Nexus Releases 仓库的任务
+task publishToNexusReleases {
+    group = 'publishing'
+    description = 'Publishes all Maven publications to Nexus Releases repository'
+    dependsOn tasks.matching { task ->
+        task.name.endsWith('PublicationToNexusReleasesRepository')
+    }
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_1_8
+    targetCompatibility = JavaVersion.VERSION_1_8
+}
+
+tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+    kotlinOptions {
+        jvmTarget = '1.8'
+        freeCompilerArgs += ['-Xjsr305=strict']
+    }
+}

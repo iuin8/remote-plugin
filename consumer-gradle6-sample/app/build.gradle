@@ -1,0 +1,8 @@
+// 为了让插件注册到子模块，这里定义一个假的 bootJar 任务
+// 实际项目中使用 Spring Boot 时将自动存在 bootJar 任务
+
+tasks.register('bootJar') {
+    doLast {
+        println 'fake bootJar'
+    }
+}
