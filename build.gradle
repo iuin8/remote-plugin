@@ -25,15 +25,24 @@ dependencies {
 }
 
 gradlePlugin {
-    // website = 'https://github.com/iuin8/remote-plugin'  // Gradle 6 兼容性
-    // vcsUrl = 'https://github.com/iuin8/remote-plugin.git'  // Gradle 6 兼容性
+    // Plugin Portal 元数据（仅在发布时需要）
+    // 使用方式: ./gradlew publishPlugins -PpublishToPortal
+    if (project.hasProperty('publishToPortal')) {
+        website = 'https://github.com/iuin8/remote-plugin'
+        vcsUrl = 'https://github.com/iuin8/remote-plugin.git'
+    }
+    
     plugins {
         remote {
             id = "io.github.iuin8.remote"
             implementationClass = "io.github.iuin8.remote.RemotePlugin"
             displayName = "Remote Exec Plugin"
-            description = "Executes local and remote shell commands for deployment pipelines"
-            // tags = ['remote', 'deployment', 'shell', 'ssh', 'jenkins']  // Gradle 6 兼容性
+            description = "Executes local and remote shell commands for deployment pipelines, with Jenkins integration"
+            
+            // Tags（仅在发布时需要）
+            if (project.hasProperty('publishToPortal')) {
+                tags = ['remote', 'deployment', 'shell', 'ssh', 'jenkins']
+            }
         }
     }
 }

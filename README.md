@@ -112,6 +112,8 @@ cd gradle/remote-plugin
 ```bash
 # 发布到gradle插件仓库
 ./gradlew publishPlugins
+# 带参数发布（自动启用website/vcsUrl/tags）
+./gradlew publishPlugins -PpublishToPortal
 ```
 
 说明：
