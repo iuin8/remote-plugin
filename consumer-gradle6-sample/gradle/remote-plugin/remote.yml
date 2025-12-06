@@ -1,4 +1,4 @@
-```
+
 # Remote plugin configuration example
 # Supported placeholders:
 #   - ${service}            : current Gradle project name
@@ -11,7 +11,7 @@ jenkins:
   token: "test_token"
   # 针对你的Jenkins结构
   jobs:
-    test: "东箭-后端(Test环境)"
+    test: "xxx-后端(Test环境)"
 
 # Environment configurations
 # Each environment can have its own settings
