@@ -85,13 +85,13 @@ class RemotePlugin : Plugin<Project> {
                 // 重启任务
                 sub.tasks.register("${profile}_restart", Exec::class.java) { t ->
                     t.group = "remote"
-                    restartTask(t, profile, scriptDir)
+                    restartTask(t, profile)
                 }
 
                 // Jenkins构建任务
                 sub.tasks.register("${profile}_jenkins_build") { t ->
                     t.group = "remote"
-                    jenkinsBuildTask(t, profile, scriptDir)
+                    jenkinsBuildTask(t, profile)
                 }
             }
         }
@@ -244,7 +244,7 @@ class RemotePlugin : Plugin<Project> {
         }
 
         @JvmStatic
-        fun restartTask(task: Exec, profile: String, scriptDir: String) {
+        fun restartTask(task: Exec, profile: String) {
             task.onlyIf { task.project.tasks.findByName("bootJar") != null }
             task.doFirst {
                 RemotePluginUtils.envLoad(task, profile)
@@ -314,183 +314,13 @@ class RemotePlugin : Plugin<Project> {
             }
         }
 
+        /**
+         * Jenkins构建任务
+         * 使用 jenkins-client 库实现
+         */
         @JvmStatic
-        fun jenkinsBuildTask(task: Task, profile: String, scriptDir: String) {
-            task.doFirst {
-                val jenkinsConfig = RemotePluginUtils.getJenkinsConfig(task, profile)
-                val url = jenkinsConfig["url"]
-                val user = jenkinsConfig["user"]
-                val token = jenkinsConfig["token"]
-                val job = jenkinsConfig["job"]
-
-                if (url == null || user == null || token == null || job == null) {
-                    throw GradleException("[jenkins] 配置不完整，请在 remote.yml 中配置 jenkins.{url,user,token,job}")
-                }
-
-                println("[jenkins] 触发构建: $job (环境: $profile)")
-                println("[jenkins] Jenkins URL: $url")
-                
-                // 检查 jq 工具是否可用
-                try {
-                    task.project.exec { 
-                        it.commandLine("which", "jq")
-                        it.standardOutput = java.io.ByteArrayOutputStream()
-                    }
-                } catch (e: Exception) {
-                    println("[jenkins] 警告: 未安装 jq 工具，输出将是原始 JSON 格式")
-                    println("[jenkins] 建议安装: brew install jq")
-                }
-
-                // 设置环境变量供shell脚本使用
-                task.extensions.extraProperties.apply {
-                    set("JENKINS_URL", url)
-                    set("JENKINS_USER", user)
-                    set("JENKINS_TOKEN", token)
-                    set("JENKINS_JOB", job)
-                }
-            }
-
-            task.doLast {
-                val extra = task.extensions.extraProperties
-                val url = extra.get("JENKINS_URL").toString()
-                val user = extra.get("JENKINS_USER").toString()
-                val token = extra.get("JENKINS_TOKEN").toString()
-                val job = extra.get("JENKINS_JOB").toString()
-
-                val shellScript = """
-                    set -e
-                    
-                    # 将job路径转换为Jenkins API格式
-                    # "东箭-后端(Test环境)/marketing-service" -> "东箭-后端(Test环境)/job/marketing-service"
-                    # 每个 / 都替换为 /job/，但第一个除外
-                    JOB_API_PATH=$(echo "$job" | sed 's#/#/job/#g' | sed 's#^/job/##')
-                    
-                    echo "[jenkins] Job路径: $job"
-                    echo "[jenkins] API路径: ${'$'}JOB_API_PATH"
-                    
-                    # URL编码（使用Python，比jq更可靠）
-                    if command -v python3 &> /dev/null; then
-                        ENCODED_JOB=$(python3 -c "import urllib.parse; print(urllib.parse.quote('${'$'}JOB_API_PATH', safe='/'))")
-                    elif command -v python &> /dev/null; then
-                        ENCODED_JOB=$(python -c "import urllib; print urllib.quote('${'$'}JOB_API_PATH', safe='/')")
-                    else
-                        # 降级：不编码，希望Jenkins能处理
-                        ENCODED_JOB="${'$'}JOB_API_PATH"
-                        echo "[jenkins] 警告: 未找到Python，无法进行URL编码"
-                    fi
-                    
-                    # 触发构建
-                    echo "[jenkins] 正在触发构建..."
-                    BUILD_URL="$url/job/${'$'}ENCODED_JOB/build"
-                    echo "[jenkins] 请求URL: ${'$'}BUILD_URL"
-                    
-                    # 获取队列URL（从Location header）
-                    QUEUE_URL=${'$'}(curl -X POST "${'$'}BUILD_URL" \
-                        --globoff \
-                        -u "$user:$token" \
-                        -s -D - -o /dev/null | grep -i "^Location:" | sed 's/Location: //i' | tr -d '\r')
-                    
-                    if [ -z "${'$'}QUEUE_URL" ]; then
-                        echo "[jenkins] 错误: 未能获取队列URL，可能触发失败"
-                        exit 1
-                    fi
-                    
-                    echo "[jenkins] 已加入队列: ${'$'}QUEUE_URL"
-                    
-                    # 轮询队列，获取实际构建号
-                    echo "[jenkins] 等待构建开始..."
-                    MAX_QUEUE_WAIT=30
-                    QUEUE_COUNT=0
-                    BUILD_NUMBER=""
-                    
-                    while [ ${'$'}QUEUE_COUNT -lt ${'$'}MAX_QUEUE_WAIT ]; do
-                        QUEUE_INFO=${'$'}(curl -s "${'$'}{QUEUE_URL}api/json" --globoff -u "$user:$token")
-                        
-                        # 检查构建是否已开始（executable字段存在）
-                        BUILD_NUMBER=${'$'}(echo "${'$'}QUEUE_INFO" | jq -r '.executable.number // empty')
-                        
-                        if [ -n "${'$'}BUILD_NUMBER" ]; then
-                            echo "[jenkins] 构建已开始，构建号: #${'$'}BUILD_NUMBER"
-                            break
-                        fi
-                        
-                        # 检查是否被取消
-                        CANCELLED=${'$'}(echo "${'$'}QUEUE_INFO" | jq -r '.cancelled // false')
-                        if [ "${'$'}CANCELLED" = "true" ]; then
-                            echo "[jenkins] 构建在队列中被取消"
-                            exit 1
-                        fi
-                        
-                        QUEUE_COUNT=$((QUEUE_COUNT + 1))
-                        echo -n "."
-                        sleep 1
-                    done
-                    echo ""
-                    
-                    if [ -z "${'$'}BUILD_NUMBER" ]; then
-                        echo "[jenkins] 警告: 超时未获取到构建号，使用lastBuild"
-                        INFO_URL="$url/job/${'$'}ENCODED_JOB/lastBuild/api/json"
-                    else
-                        # 使用具体的构建号
-                        INFO_URL="$url/job/${'$'}ENCODED_JOB/${'$'}BUILD_NUMBER/api/json"
-                    fi
-                    
-                    # 等待构建信息就绪
-                    echo "[jenkins] 获取构建信息..."
-                    sleep 2
-                    
-                    MAX_RETRIES=6
-                    RETRY_COUNT=0
-                    while [ ${'$'}RETRY_COUNT -lt ${'$'}MAX_RETRIES ]; do
-                        BUILD_JSON=${'$'}(curl -s "${'$'}INFO_URL" --globoff -u "$user:$token")
-                        
-                        # 检查是否有changeSet数据
-                        if echo "${'$'}BUILD_JSON" | jq -e '.changeSet.items | length > 0' &> /dev/null; then
-                            echo "[jenkins] 成功获取构建信息（包含提交记录）"
-                            break
-                        else
-                            RETRY_COUNT=$((RETRY_COUNT + 1))
-                            if [ ${'$'}RETRY_COUNT -lt ${'$'}MAX_RETRIES ]; then
-                                echo "[jenkins] 提交记录尚未就绪，等待3秒后重试... (${'$'}RETRY_COUNT/${'$'}MAX_RETRIES)"
-                                sleep 3
-                            else
-                                echo "[jenkins] 已达最大重试次数，使用当前数据"
-                            fi
-                        fi
-                    done
-                    
-                    # 尝试使用 jq 格式化输出，如果不可用则输出原始JSON
-                    if command -v jq &> /dev/null; then
-                        echo ""
-                        echo "=================================================="
-                        echo " Jenkins 构建信息"
-                        echo "=================================================="
-                        echo "${'$'}BUILD_JSON" | jq -r '
-                            "任务: " + .fullDisplayName,
-                            "构建号: #" + (.number|tostring),
-                            "结果: " + (.result // "进行中"),
-                            "URL: " + .url,
-                            "分支: " + (.actions[]?.lastBuiltRevision?.branch?[]?.name // "未知"),
-                            "--------------------------------------------------",
-                            "提交记录:",
-                            (.changeSet.items[] | "  - [" + .author.fullName + "] " + .msg)
-                        '
-                        echo "=================================================="
-                    else
-                        echo ""
-                        echo "构建已触发，详细信息请查看 Jenkins:"
-                        echo "${'$'}BUILD_JSON" | grep -o '"url":"[^"]*"' | head -1 | cut -d'"' -f4
-                        echo ""
-                        echo "提示: 安装 jq 工具可获得更好的显示效果: brew install jq"
-                    fi
-                """.trimIndent()
-
-                task.project.exec { execSpec ->
-                    execSpec.commandLine("bash", "-c", shellScript)
-                    execSpec.standardOutput = System.out
-                    execSpec.errorOutput = System.err
-                }
-            }
+        fun jenkinsBuildTask(task: Task, platform: String) {
+            JenkinsTask.jenkinsBuildTask(task, platform)
         }
     }
 }

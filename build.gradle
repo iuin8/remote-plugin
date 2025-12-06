@@ -6,7 +6,7 @@ plugins {
 }
 
 group = 'io.github.iuin8'
-version = '0.1.37.7'
+version = '0.1.37.12'
 
 def secretsFile = file("support-tools/secrets/gradle/${rootProject.name}/secrets.properties")
 if (secretsFile.exists()) {
@@ -21,6 +21,7 @@ repositories {
 
 dependencies {
     implementation gradleApi()
+    implementation 'com.offbytwo.jenkins:jenkins-client:0.3.8'
     // 移除 Jackson 依赖，避免 Gradle 6 对 classfile(major 61) 的兼容问题
 }
 
