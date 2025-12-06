@@ -6,7 +6,7 @@ plugins {
 }
 
 group = 'io.github.iuin8'
-version = '0.1.37.6'
+version = '0.1.37.7'
 
 def secretsFile = file("support-tools/secrets/gradle/${rootProject.name}/secrets.properties")
 if (secretsFile.exists()) {
@@ -31,7 +31,7 @@ gradlePlugin {
         website = 'https://github.com/iuin8/remote-plugin'
         vcsUrl = 'https://github.com/iuin8/remote-plugin.git'
     }
-    
+
     plugins {
         remote {
             id = "io.github.iuin8.remote"
