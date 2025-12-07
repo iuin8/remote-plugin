@@ -204,7 +204,10 @@ object JenkinsTask {
         }
         
         println("分支: $branchName")
-        println("URL: ${details.url}")
+        
+        // 处理 URL 编码，确保终端可点击 (特别是中文和小括号)
+        val niceUrl = encodeJenkinsUrl(details.url)
+        println("URL: $niceUrl")
         
         println("--------------------------------------------------")
         println("提交记录:")
@@ -216,5 +219,26 @@ object JenkinsTask {
             println("  (无提交记录)")
         }
         println("==================================================")
+    }
+
+    private fun encodeJenkinsUrl(rawUrl: String): String {
+        return try {
+            val uri = java.net.URI(rawUrl)
+            // 获取解码后的 path (例如 /job/测试(Test)/...)
+            val decodedPath = uri.path
+            
+            // 手动对每一段进行 URL 编码
+            // 注意: split("/") 会保留空字符串，这对于保留首尾斜杠很重要
+            val encodedPath = decodedPath.split("/").joinToString("/") { part ->
+                if (part.isEmpty()) "" else java.net.URLEncoder.encode(part, "UTF-8").replace("+", "%20")
+            }
+            
+            // 重组 URL (不使用 URI 类重组，因为 URI 类不会编码括号)
+            val portPart = if (uri.port != -1) ":${uri.port}" else ""
+            "${uri.scheme}://${uri.host}$portPart$encodedPath"
+        } catch (e: Exception) {
+            // 降级处理: 仅做基础替换
+            rawUrl.replace("(", "%28").replace(")", "%29")
+        }
     }
 }
