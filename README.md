@@ -37,16 +37,14 @@ apply plugin: "io.github.iuin8.remote"
 
 ## Basic Usage
 
-Configure the plugin in your `build.gradle`:
+### Configuration
 
-```groovy
-remote {
-    // Configuration details here
-}
-```
+Define your configuration in a `remote.yml` file. You can find examples here:
 
-(See below for detailed configuration in Chinese, or refer to the source code for property definitions)
+- [Example Project](https://github.com/iuin8/remote-plugin/blob/main/consumer-gradle6-sample)
+- [Example Configuration File](https://github.com/iuin8/remote-plugin/blob/main/consumer-gradle6-sample/gradle/remote-plugin/remote.yml)
 
+### Usage
 
 (See below for detailed configuration in Chinese, or refer to the source code for property definitions)
 
