@@ -403,7 +403,7 @@ object SshSetupManager {
                 "# Host your-server-alias\n" +
                 "#   HostName your-server-hostname.com\n" +
                 "#   User your-username\n" +
-                "#   IdentityFile ./gradle/remote-plugin/.ssh/id_ed25519\n" +
+                "#   IdentityFile ../gradle/remote-plugin/.ssh/id_ed25519\n" +
                 "#   Port 22\n" +
                 "\n" +
                 "# Add your SSH configurations below\n" +

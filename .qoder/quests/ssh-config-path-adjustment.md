@@ -93,7 +93,7 @@ consumer-gradle6-sample/gradle/remote-plugin/
 
 | 配置项 | 原内容 | 新内容 |
 |-------|-------|-------|
-| IdentityFile（相对路径） | `./gradle/remote-plugin/id_rsa_public` | `./gradle/remote-plugin/.ssh/id_rsa_public` |
+| IdentityFile（相对路径） | `./gradle/remote-plugin/id_rsa_public` | `../gradle/remote-plugin/.ssh/id_rsa_public` |
 | IdentityFile（绝对路径） | 无需调整 | 无需调整 |
 
 ### 6. 文档更新策略
@@ -115,7 +115,7 @@ IdentityFile 引用：./gradle/remote-plugin/id_rsa_public
 **新示例（.ssh/config）：**
 ```
 位置：gradle/remote-plugin/.ssh/config
-IdentityFile 引用：./gradle/remote-plugin/.ssh/id_rsa_public
+IdentityFile 引用：../gradle/remote-plugin/.ssh/id_rsa_public
 ```
 
 ## 实施步骤
