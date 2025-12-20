@@ -58,7 +58,7 @@ The plugin supports automatic SSH configuration management, enabling out-of-the-
 
 Create an SSH configuration file in your project's plugin configuration directory:
 ```
-<project-root>/gradle/remote-plugin/ssh_config
+<project-root>/gradle/remote-plugin/.ssh/config
 ```
 
 ### Configuration Example
@@ -73,7 +73,7 @@ Host cloudflared.fa.internet.company
 
 ### Auto-Injection Mechanism
 
-When `gradle/remote-plugin/ssh_config` exists in your project, the plugin automatically:
+When `gradle/remote-plugin/.ssh/config` exists in your project, the plugin automatically:
 
 1. **First Layer: System Configuration Injection**
    - Adds plugin configuration reference at the beginning of `~/.ssh/config` (first time only):
@@ -88,7 +88,7 @@ When `gradle/remote-plugin/ssh_config` exists in your project, the plugin automa
    ```
    # Project: <project-name>
    # Path: <project-path>
-   Include <project-root>/gradle/remote-plugin/ssh_config
+   Include <project-root>/gradle/remote-plugin/.ssh/config
    ```
 
 ### Configuration Structure
@@ -98,9 +98,9 @@ When `gradle/remote-plugin/ssh_config` exists in your project, the plugin automa
   ↓ Include
 ~/.ssh/gradle/remote-plugin/config (Plugin Managed Config)
   ↓ Include
-  ├─ project1/gradle/remote-plugin/ssh_config
-  ├─ project2/gradle/remote-plugin/ssh_config
-  └─ projectN/gradle/remote-plugin/ssh_config
+  ├─ project1/gradle/remote-plugin/.ssh/config
+  ├─ project2/gradle/remote-plugin/.ssh/config
+  └─ projectN/gradle/remote-plugin/.ssh/config
 ```
 
 ### Important Notes
@@ -108,14 +108,14 @@ When `gradle/remote-plugin/ssh_config` exists in your project, the plugin automa
 ⚠️ **Avoid Host Name Conflicts**
 
 - SSH uses "first-match" principle - stops at the first matching Host
-- Don't configure duplicate Host names across different projects' `ssh_config` files
+- Don't configure duplicate Host names across different projects' `.ssh/config` files
 - When Host name conflicts occur, only the first matched configuration takes effect
 - Project configurations have higher priority than subsequent definitions in system config
 
 ### Version Control Recommendations
 
 - `remote.yml`: Recommended to include in Git for team sharing
-- `ssh_config`: Choose based on your needs
+- `.ssh/config`: Choose based on your needs
   - If it contains sensitive information (private hosts, usernames), add to `.gitignore`
   - If it's generic configuration (like bastion hosts), can be version controlled
 

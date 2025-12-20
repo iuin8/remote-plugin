@@ -23,12 +23,14 @@ object SshConfigManager {
      */
     fun setupSshConfig(projectRootDir: File, projectName: String) {
         try {
-            // 检查项目的 ssh_config 文件是否存在
-            val projectSshConfig = File(projectRootDir, "gradle/remote-plugin/ssh_config")
+            // 检查项目的 SSH 配置文件是否存在
+            val projectSshConfig = File(projectRootDir, "gradle/remote-plugin/.ssh/config")
             if (!projectSshConfig.exists()) {
-                println("[remote-plugin] 项目未配置 ssh_config，跳过 SSH 配置注入")
+                println("[remote-plugin] 项目未配置 SSH 配置文件，跳过 SSH 配置注入")
                 return
             }
+            
+            println("[remote-plugin] 找到 SSH 配置文件：gradle/remote-plugin/.ssh/config")
             
             // 第一步：确保系统配置包含插件 Include
             ensureSystemConfigIncludesPlugin()

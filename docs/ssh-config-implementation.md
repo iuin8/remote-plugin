@@ -5,7 +5,7 @@
 ### ✅ 已完成的任务
 
 1. **创建示例 SSH 配置文件**
-   - 位置: `consumer-gradle6-sample/gradle/remote-plugin/ssh_config`
+   - 位置: `consumer-gradle6-sample/gradle/remote-plugin/.ssh/config`
    - 包含详细的配置示例和注释说明
 
 2. **实现 SSH 配置管理工具**
@@ -39,14 +39,14 @@
 ~/.ssh/config (系统配置)
   ↓ Include ~/.ssh/gradle/remote-plugin/*
 ~/.ssh/gradle/remote-plugin/config (插件管理配置)
-  ↓ Include 项目1/gradle/remote-plugin/ssh_config
-  ↓ Include 项目2/gradle/remote-plugin/ssh_config
-  ↓ Include 项目N/gradle/remote-plugin/ssh_config
+  ↓ Include 项目1/gradle/remote-plugin/.ssh/config
+  ↓ Include 项目2/gradle/remote-plugin/.ssh/config
+  ↓ Include 项目N/gradle/remote-plugin/.ssh/config
 ```
 
 ### 核心功能
 
-- ✅ **自动检测**: 插件初始化时检测项目 ssh_config 文件
+- ✅ **自动检测**: 插件初始化时检测项目 .ssh/config 文件
 - ✅ **自动注入**: 
   - 首次在系统配置中注入插件引用
   - 在插件管理配置中注入项目引用
@@ -65,7 +65,7 @@
 
 ### 1. 创建项目 SSH 配置
 
-在项目中创建文件: `gradle/remote-plugin/ssh_config`
+在项目中创建文件: `gradle/remote-plugin/.ssh/config`
 
 ```ssh
 Host myserver
@@ -118,13 +118,13 @@ cat ~/.ssh/gradle/remote-plugin/config
    预期: 检测到已存在，不重复注入
 
 3. **多项目测试**
-   - 在另一个项目中创建 ssh_config
+   - 在另一个项目中创建 .ssh/config
    - 运行 Gradle 任务
    预期: 插件管理配置中追加新项目
 
 ### 边界测试
 
-- [ ] 项目无 ssh_config: 跳过注入
+- [ ] 项目无 .ssh/config: 跳过注入
 - [ ] ~/.ssh 目录不存在: 自动创建
 - [ ] 文件权限不正确: 自动修正
 - [ ] 配置文件损坏: 捕获异常并跳过
@@ -134,12 +134,12 @@ cat ~/.ssh/gradle/remote-plugin/config
 ⚠️ **重要提醒**
 
 1. **避免 Host 名称冲突**
-   - 不同项目的 ssh_config 中不要使用相同的 Host 名称
+   - 不同项目的 .ssh/config 中不要使用相同的 Host 名称
    - SSH 使用首次匹配原则，重复配置会导致后面的不生效
 
 2. **版本控制建议**
    - remote.yml: 建议纳入 Git 管理
-   - ssh_config: 根据是否包含敏感信息决定
+   - .ssh/config: 根据是否包含敏感信息决定
 
 3. **文件权限**
    - ~/.ssh/config: 600 (rw-------)
@@ -157,7 +157,8 @@ cat ~/.ssh/gradle/remote-plugin/config
 
 ### 新增文件
 - `src/main/kotlin/io/github/iuin8/remote/SshConfigManager.kt` - SSH 配置管理器
-- `consumer-gradle6-sample/gradle/remote-plugin/ssh_config` - 示例配置文件
+- `consumer-gradle6-sample/gradle/remote-plugin/.ssh/config` - 示例配置文件
+- `consumer-gradle6-sample/gradle/remote-plugin/.ssh/id_rsa_public` - 示例公钥文件
 - `test-ssh-config.kts` - 测试脚本 (可选)
 
 ### 修改文件
@@ -175,4 +176,5 @@ cat ~/.ssh/gradle/remote-plugin/config
 ---
 
 **实现完成日期**: 2024-12-20
+**符合设计文档**: ✅ 是
 **符合设计文档**: ✅ 是

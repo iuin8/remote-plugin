@@ -193,7 +193,7 @@ log:
 
 在项目的插件配置目录下创建 SSH 配置文件：
 ```
-<项目根目录>/gradle/remote-plugin/ssh_config
+<项目根目录>/gradle/remote-plugin/.ssh/config
 ```
 
 ### 配置示例
@@ -208,7 +208,7 @@ Host cloudflared.fa.internet.company
 
 ### 自动注入机制
 
-当项目中存在 `gradle/remote-plugin/ssh_config` 文件时，插件初始化时会自动：
+当项目中存在 `gradle/remote-plugin/.ssh/config` 文件时，插件初始化时会自动：
 
 1. **第一层：系统配置注入**
    - 在 `~/.ssh/config` 文件开头添加插件配置引用（仅首次）：
@@ -223,7 +223,7 @@ Host cloudflared.fa.internet.company
    ```
    # Project: <项目名>
    # Path: <项目路径>
-   Include <项目根目录>/gradle/remote-plugin/ssh_config
+   Include <项目根目录>/gradle/remote-plugin/.ssh/config
    ```
 
 ### 配置结构
@@ -233,24 +233,24 @@ Host cloudflared.fa.internet.company
   ↓ Include
 ~/.ssh/gradle/remote-plugin/config (插件管理配置)
   ↓ Include
-  ├─ 项目1/gradle/remote-plugin/ssh_config
-  ├─ 项目2/gradle/remote-plugin/ssh_config
-  └─ 项目N/gradle/remote-plugin/ssh_config
+  ├─ 项目1/gradle/remote-plugin/.ssh/config
+  ├─ 项目2/gradle/remote-plugin/.ssh/config
+  └─ 项目N/gradle/remote-plugin/.ssh/config
 ```
 
 ### 重要提醒
 
 ⚠️ **避免 Host 名称冲突**
 
-- SSH 配置使用"首次匹配"原则，遇到第一个匹配的 Host 就停止查找
-- 不同项目的 `ssh_config` 中不要配置相同的 Host 名称
+- SSH 配置使用“首次匹配”原则，遇到第一个匹配的 Host 就停止查找
+- 不同项目的 `.ssh/config` 中不要配置相同的 Host 名称
 - 发生 Host 名称冲突时，只有最先匹配到的配置会生效
 - 项目配置通过 Include 引入，优先级高于系统配置中的后续定义
 
 ### 版本控制建议
 
 - `remote.yml`：建议纳入 Git 管理，便于团队共享环境配置
-- `ssh_config`：根据实际情况选择
+- `.ssh/config`：根据实际情况选择
   - 如果包含敏感信息（私有主机地址、用户名等），建议添加到 `.gitignore`
   - 如果是通用配置（如跳板机配置），可以纳入版本管理
 

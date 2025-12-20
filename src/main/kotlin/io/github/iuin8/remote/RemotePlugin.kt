@@ -53,6 +53,9 @@ class RemotePlugin : Plugin<Project> {
             environments.add(profile)
         }
 
+        // 设置 SSH 配置和密钥自动管理
+        SshSetupManager.setupProjectSsh(project.rootDir)
+        
         // 设置 SSH 配置自动注入
         SshConfigManager.setupSshConfig(project.rootDir, project.name)
 
@@ -227,7 +230,6 @@ class RemotePlugin : Plugin<Project> {
 
                 val remoteServer = extra.get("remote.server").toString()
                 println("正在通过SSH连接到 $remoteServer 并启动Arthas(${task.project.name}:$arthasPort)...")
-
                 val arthasCmdStr = "ssh -tt -o SendEnv=TERM -o RequestTTY=force $remoteServer bash -c 'stty intr ^c; export TERM=xterm; telnet localhost $arthasPort'"
                 println("[cmd] $arthasCmdStr")
                 task.setCommandLine(
