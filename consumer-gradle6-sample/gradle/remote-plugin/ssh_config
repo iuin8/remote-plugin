@@ -1,0 +1,12 @@
+# SSH Config Example for Gradle Remote Plugin
+# This file will be automatically included in your system SSH config
+
+# Example Host Configuration
+# Host cloudflared.fa.internet.company
+#   HostName ssh-fa-ssy-edgeone-cn.iuin888vip.icu
+#   User root
+#   IdentityFile ~/.ssh/id_ed25519_iu
+#   ProxyCommand cloudflared access ssh --hostname %h
+
+# Add your SSH configurations below
+# Make sure the Host names are unique to avoid conflicts with other projects

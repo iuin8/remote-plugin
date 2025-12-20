@@ -53,6 +53,9 @@ class RemotePlugin : Plugin<Project> {
             environments.add(profile)
         }
 
+        // 设置 SSH 配置自动注入
+        SshConfigManager.setupSshConfig(project.rootDir, project.name)
+
         // 在所有子模块注册任务
         project.subprojects.forEach { sub ->
             environments.forEach { profile ->
