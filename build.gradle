@@ -22,6 +22,8 @@ repositories {
 dependencies {
     implementation gradleApi()
     implementation 'com.offbytwo.jenkins:jenkins-client:0.3.8'
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.1'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.8.1'
     // 移除 Jackson 依赖，避免 Gradle 6 对 classfile(major 61) 的兼容问题
 }
 

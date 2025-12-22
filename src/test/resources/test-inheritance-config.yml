@@ -1,0 +1,38 @@
+# Base configuration
+base:
+  remote:
+    base:
+      dir: /path/to/base/app
+  service:
+    ports:
+      app: 8080
+    start:
+      command: sudo systemctl restart ${SERVICE_NAME}
+  log:
+    filePattern: ${REMOTE_BASE_DIR}/../logs/${service}.log
+
+# Environment configurations
+environments:
+  dev:
+    extends: base
+    remote:
+      server: dev-server-hostname
+    service:
+      ports:
+        app: 8080
+    ssh:
+      setup:
+        auto:
+          keygen: true
+        key:
+          type: ed25519
+
+  prod:
+    extends: base
+    remote:
+      server: prod-server-hostname
+    service:
+      ports:
+        app: 80
+    log:
+      filePattern: ${REMOTE_BASE_DIR}/../logs/prod-${service}.log

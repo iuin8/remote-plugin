@@ -203,7 +203,7 @@ object RemotePluginUtils {
 
     /**
      * 加载环境配置
-     * 优先从remote.yml的environments部分读取配置，同时保持向后兼容
+     * 支持配置继承机制
      */
     fun envLoad(task: Task, profile: String): Boolean {
         println("[DEBUG-envLoad] - 开始加载环境配置 - 项目: ${task.project.name} 环境: $profile")
@@ -216,30 +216,30 @@ object RemotePluginUtils {
         if (remoteYmlFile.exists()) {
             println("[DEBUG-envLoad] 发现remote.yml文件: ${remoteYmlFile.absolutePath}")
             try {
-                val config = parseSimpleYaml(remoteYmlFile)
-                println("[DEBUG-envLoad] 解析remote.yml成功，共加载 ${config.size} 个配置项")
+                // 使用新的配置合并机制
+                val mergedConfig = ConfigMerger.getMergedConfigForEnvironment(remoteYmlFile, profile)
+                println("[DEBUG-envLoad] 解析remote.yml成功，共加载 ${mergedConfig.size} 个配置项")
                 
                 // 打印所有配置项（用于调试）
-                println("[DEBUG-envLoad] remote.yml所有配置项: $config")
+                println("[DEBUG-envLoad] 合并后的配置项: $mergedConfig")
                 
-                // 查找environments.$profile下的所有配置
+                // 应用配置到任务属性
                 val loadedProperties = mutableMapOf<String, String>()
-                config.entries.forEach { (key, value) ->
-                    if (key.startsWith("environments.$profile.")) {
-                        // 提取属性名，去掉"environments.$profile."前缀
-                        val propName = key.substring("environments.$profile.".length)
-                        extra.set(propName, value)
-                        loadedProperties[propName] = value
-                        println("[DEBUG-envLoad] 从remote.yml加载配置: $propName=$value")
-                    }
+                mergedConfig.entries.forEach { (key, value) ->
+                    extra.set(key, value)
+                    loadedProperties[key] = value
+                    println("[DEBUG-envLoad] 从remote.yml加载配置: $key=$value")
                 }
                 
                 if (loadedProperties.isNotEmpty()) {
                     println("[DEBUG-envLoad] 成功从remote.yml加载 ${loadedProperties.size} 个环境配置项")
                     return true
                 } else {
-                    println("[DEBUG-envLoad] No config found for environments.$profile in remote.yml")
+                    println("[DEBUG-envLoad] No config found for environment $profile in remote.yml")
                 }
+            } catch (e: ConfigMerger.ConfigException) {
+                println("[DEBUG-envLoad] 配置错误: ${e.message}")
+                e.printStackTrace()
             } catch (e: Exception) {
                 println("[DEBUG-envLoad] Error parsing remote.yml: ${e.message}")
                 e.printStackTrace()
@@ -248,7 +248,7 @@ object RemotePluginUtils {
             println("[DEBUG-envLoad] remote.yml file not found: ${remoteYmlFile.absolutePath}")
         }
         
-        // 回退到原来的gradle-$profile.properties文件，保持向后兼容
+        // 回退到原来的gradle-$profile.properties文件
         val envPropsFile = File(task.project.rootDir, "gradle-$profile.properties")
         println("[envLoad] 尝试从属性文件加载配置: ${envPropsFile.absolutePath}")
         if (!envPropsFile.exists()) return false
