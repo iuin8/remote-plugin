@@ -42,16 +42,6 @@ class RemotePlugin : Plugin<Project> {
             }
         }
         
-        // 2. 从properties文件获取环境配置（保持向后兼容）
-        val propertyFiles = project.rootDir.listFiles { _, name ->
-              name.startsWith("gradle-") && name.endsWith(".properties")
-          }?.toList() ?: emptyList()
-        
-        propertyFiles.forEach { propFile ->
-            val fileName = propFile.name
-            val profile = fileName.replace(Regex("^gradle-(.*)\\.properties$"), "$1")
-            environments.add(profile)
-        }
 
         // 设置 SSH 配置和密钥自动管理
         SshSetupManager.setupProjectSsh(project.rootDir)

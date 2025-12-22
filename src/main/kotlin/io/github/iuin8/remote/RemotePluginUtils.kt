@@ -248,19 +248,7 @@ object RemotePluginUtils {
             println("[DEBUG-envLoad] remote.yml file not found: ${remoteYmlFile.absolutePath}")
         }
         
-        // 回退到原来的gradle-$profile.properties文件
-        val envPropsFile = File(task.project.rootDir, "gradle-$profile.properties")
-        println("[envLoad] 尝试从属性文件加载配置: ${envPropsFile.absolutePath}")
-        if (!envPropsFile.exists()) return false
-
-        val props = Properties()
-        envPropsFile.inputStream().use { props.load(it) }
-
-        props.forEach { k, v ->
-            extra.set(k as String, v)
-            println("[envLoad] 加载配置: $k=$v")
-        }
-        return true
+        return false
     }
 
     /**
