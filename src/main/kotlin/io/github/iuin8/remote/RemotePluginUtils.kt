@@ -2,20 +2,53 @@ package io.github.iuin8.remote
 
 import org.gradle.api.GradleException
 import org.gradle.api.Task
+import org.gradle.api.provider.Property
 import org.gradle.api.tasks.Exec
-import java.io.File
-import java.util.Properties
+import org.gradle.api.tasks.Input
+import org.gradle.api.tasks.TaskAction
+import org.gradle.process.ExecResult
 import org.gradle.api.plugins.ExtraPropertiesExtension
+import java.io.File
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 
 /**
  * RemotePlugin 工具类，包含非任务相关的辅助方法
  */
 object RemotePluginUtils {
     /**
+     * 替换配置值中的占位符
+     */
+    fun replacePlaceholders(value: String, serviceName: String, remoteBaseDir: String, servicePort: String): String {
+        return value
+            .replace("\${service}", serviceName)
+            .replace("\$service", serviceName)
+            .replace("\${SERVICE_NAME}", serviceName)
+            .replace("\$SERVICE_NAME", serviceName)
+            .replace("\${remote.base.dir}", remoteBaseDir)
+            .replace("\$remote.base.dir", remoteBaseDir)
+            .replace("\${REMOTE_BASE_DIR}", remoteBaseDir)
+            .replace("\$REMOTE_BASE_DIR", remoteBaseDir)
+            .replace("\${SERVICE_PORT}", servicePort)
+            .replace("\$SERVICE_PORT", servicePort)
+    }
+    
+    /**
+     * 替换配置值中的占位符（仅使用服务名）
+     */
+    fun replacePlaceholders(value: String, serviceName: String): String {
+        return value
+            .replace("\${service}", serviceName)
+            .replace("\$service", serviceName)
+            .replace("\${SERVICE_NAME}", serviceName)
+            .replace("\$SERVICE_NAME", serviceName)
+    }
+    
+    /**
      * 解析YAML配置文件，支持嵌套结构
      */
     fun parseSimpleYaml(file: File): Map<String, String> {
-        val map = mutableMapOf<String, String>()
+        val config = mutableMapOf<String, String>()
         val prefixStack = mutableListOf<String>()
         
         file.forEachLine { raw ->
@@ -57,13 +90,13 @@ object RemotePluginUtils {
                         value = value.substring(1, value.length - 1)
                     }
                     
-                    map[fullKey] = value
+                    config[fullKey] = value
                 }
             }
         }
-        return map
+        return config
     }
-
+    
     /**
      * 读取Jenkins配置
      * 支持在job路径中使用 ${service} 占位符，或自动添加服务名
@@ -78,22 +111,15 @@ object RemotePluginUtils {
         val config = parseSimpleYaml(cfgFile)
         val serviceName = task.project.name
         
-        // 读取job配置，优先使用 jobs.$profile，否则使用 job 或 jobPath
-        var jobPath = config["jenkins.jobs.$profile"] 
-            ?: config["jenkins.job"]
-            ?: config["jenkins.jobPath"]
+        // 只读取 jenkins.url, jenkins.user, jenkins.token, jenkins.job 配置
+        var jobPath = config["jenkins.job"]
         
         if (jobPath != null) {
             // 如果路径中包含占位符，则替换
-            if (jobPath.contains("\${service}") || jobPath.contains("\$service") || 
-                jobPath.contains("\${SERVICE_NAME}") || jobPath.contains("\$SERVICE_NAME")) {
-                jobPath = jobPath
-                    .replace("\${service}", serviceName)
-                    .replace("\$service", serviceName)
-                    .replace("\${SERVICE_NAME}", serviceName)
-                    .replace("\$SERVICE_NAME", serviceName)
-            } else {
-                // 如果没有占位符，自动在末尾添加 /${service}
+            jobPath = replacePlaceholders(jobPath, serviceName)
+            
+            // 如果没有占位符且不包含服务名，自动在末尾添加 /${service}
+            if (!jobPath.contains(serviceName)) {
                 jobPath = "$jobPath/$serviceName"
             }
         }
@@ -105,7 +131,7 @@ object RemotePluginUtils {
             "job" to jobPath
         )
     }
-
+    
     /**
      * 解析日志文件路径
      */
@@ -115,24 +141,12 @@ object RemotePluginUtils {
         if (!cfgFile.exists()) return "$remoteBaseDir/../logs/$serviceName.log"
         val config = parseSimpleYaml(cfgFile)
         val pattern = config["log.filePattern"]
-            ?: config["log.path.pattern"]
-            ?: config["log.file.pattern"]
-            ?: config["log.path"]
-            ?: config["log.file"]
         if (pattern != null) {
-            return pattern
-                .replace("\${service}", serviceName)
-                .replace("\${SERVICE_NAME}", serviceName)
-                .replace("\${remote.base.dir}", remoteBaseDir)
-                .replace("\${REMOTE_BASE_DIR}", remoteBaseDir)
-                .replace("\$service", serviceName)
-                .replace("\$SERVICE_NAME", serviceName)
-                .replace("\$remote.base.dir", remoteBaseDir)
-                .replace("\$REMOTE_BASE_DIR", remoteBaseDir)
+            return replacePlaceholders(pattern, serviceName, remoteBaseDir, "")
         }
         return "$remoteBaseDir/../logs/$serviceName.log"
     }
-
+    
     fun resolveStartCommand(task: Task, remoteBaseDir: String, serviceName: String): String {
         val scriptDirFile = File(task.project.rootDir, "gradle/remote-plugin")
         val cfgFile = File(scriptDirFile, "remote.yml")
@@ -140,19 +154,9 @@ object RemotePluginUtils {
         if (cfgFile.exists()) {
             val config = parseSimpleYaml(cfgFile)
             val v = config["start.command"]
-                ?: config["service.start.command"]
-                ?: config["start.path"]
             if (v != null) cmd = v
         }
-        return cmd
-            .replace("\${service}", serviceName)
-            .replace("\${SERVICE_NAME}", serviceName)
-            .replace("\${remote.base.dir}", remoteBaseDir)
-            .replace("\${REMOTE_BASE_DIR}", remoteBaseDir)
-            .replace("\$service", serviceName)
-            .replace("\$SERVICE_NAME", serviceName)
-            .replace("\$remote.base.dir", remoteBaseDir)
-            .replace("\$REMOTE_BASE_DIR", remoteBaseDir)
+        return replacePlaceholders(cmd, serviceName, remoteBaseDir, "")
     }
 
     fun resolveStartEnv(task: Task, remoteBaseDir: String, serviceName: String, servicePort: String): Map<String, String> {
@@ -169,17 +173,7 @@ object RemotePluginUtils {
                 } else {
                     k.substring("service.env.".length)
                 }
-                val value = v
-                    .replace("\${service}", serviceName)
-                    .replace("\${SERVICE_NAME}", serviceName)
-                    .replace("\${remote.base.dir}", remoteBaseDir)
-                    .replace("\${REMOTE_BASE_DIR}", remoteBaseDir)
-                    .replace("\${SERVICE_PORT}", servicePort)
-                    .replace("\$service", serviceName)
-                    .replace("\$SERVICE_NAME", serviceName)
-                    .replace("\$remote.base.dir", remoteBaseDir)
-                    .replace("\$REMOTE_BASE_DIR", remoteBaseDir)
-                    .replace("\$SERVICE_PORT", servicePort)
+                val value = replacePlaceholders(v, serviceName, remoteBaseDir, servicePort)
                 result[key] = value
             }
         }
@@ -188,15 +182,13 @@ object RemotePluginUtils {
 
     fun buildExportEnv(env: Map<String, String>): String {
         if (env.isEmpty()) return ""
-        return env.entries.joinToString(separator = " ", prefix = "export ") { (k, v) ->
+        return env.entries.joinToString(separator = " ", prefix = "export ") {
+            (k, v) ->
             val valEsc = v.replace("'", "'\\''")
             "$k='$valEsc'"
         }
     }
 
-    /**
-     * 构建远程tail命令
-     */
     fun buildRemoteTailCmd(logFilePath: String): String {
         return """bash -lc 'tail -fn10000 $logFilePath & pid=${'$'}!; trap "kill -TERM ${'$'}pid" EXIT; wait ${'$'}pid'"""
     }
@@ -273,34 +265,47 @@ object RemotePluginUtils {
         val configFile = File(scriptDir, "remote.yml")
         if (!configFile.exists()) {
             val sample = """
-# Service ports configuration
-service:
-  ports:
+service_ports:
     ${task.project.name}: 8080"""
             val msg = """
 [remote-plugin] 配置文件缺失
 [remote-plugin] 缺失文件, 请创建文件: ${configFile.absolutePath}
 [remote-plugin] 示例: $sample
-[remote-plugin] 说明: 在service.ports下配置服务端口；Arthas 端口 = 1 + 服务端口
-""".trimIndent()
+[remote-plugin] 说明: 在service_ports下配置服务端口；Arthas 端口 = 1 + 服务端口
+"""
+                .trimIndent()
             throw GradleException(msg)
         }
         
-        // 使用现有的YAML解析方法
-        val config = parseSimpleYaml(configFile)
-        val portKey = "service.ports.${task.project.name}"
-        val port = config[portKey]
+        // 使用配置合并机制获取环境配置
+        val profile = task.name.split('_')[0] // 从任务名中提取环境（如dev_arthas -> dev）
+        val mergedConfig = ConfigMerger.getMergedConfigForEnvironment(configFile, profile)
+        val serviceName = task.project.name
+        
+        // 尝试多种可能的键名格式
+        val possiblePortKeys = listOf(
+            "service_ports.$serviceName",
+            "remote.service_ports.$serviceName"
+        )
+        
+        var port: String? = null
+        for (portKey in possiblePortKeys) {
+            port = mergedConfig[portKey]
+            if (port != null) {
+                break
+            }
+        }
         
         if (port == null) {
             val sample = """
-service:
-  ports:
+service_ports:
     ${task.project.name}: 8080"""
             val msg = """
 [remote-plugin] 未找到服务 ${task.project.name} 的端口映射
-[remote-plugin] 请在 ${configFile.absolutePath} 的service.ports下添加条目, 示例: $sample
-[remote-plugin] 说明: 配置格式为 service.ports.<服务名>: <端口号>；Arthas 端口 = 1 + 服务端口
-""".trimIndent()
+[remote-plugin] 请在 ${configFile.absolutePath} 的service_ports下添加条目, 示例: $sample
+[remote-plugin] 说明: 配置格式为 service_ports.<服务名>: <端口号>；Arthas 端口 = 1 + 服务端口
+"""
+                .trimIndent()
             throw GradleException(msg)
         }
         return port

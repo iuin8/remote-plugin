@@ -181,7 +181,7 @@ service:
 log:
   filePattern: ${REMOTE_BASE_DIR}/../logs/${service}.log
 ```
-- 说明：服务端口在service.ports下配置，key为子模块名称；Arthas端口为`1`+服务端口（例如`8080 -> 18080`）。
+- 说明：服务端口在service_ports下配置，key为子模块名称；Arthas端口为`1`+服务端口（例如`8080 -> 18080`）。
 - 发布脚本路径：`gradle/remote-plugin/publish-service.sh`，插件在执行发布任务时会将此目录作为工作目录。
 - 缺失提示：当配置文件不存在或缺少端口配置时，插件会在控制台打印示例内容与路径提示，便于补全配置。
 

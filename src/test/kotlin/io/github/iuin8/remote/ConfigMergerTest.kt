@@ -11,7 +11,7 @@ fun main() {
         
         // 测试解析配置
         val parsedConfig = ConfigMerger.parseSimpleYamlWithBase(testConfigFile)
-        println("基础配置: ${parsedConfig.baseConfig}")
+        println("通用配置: ${parsedConfig.commonConfigs}")
         println("环境配置: ${parsedConfig.envConfigs}")
         
         // 测试dev环境配置合并

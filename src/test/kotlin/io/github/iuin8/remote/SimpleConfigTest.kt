@@ -8,12 +8,13 @@ fun main() {
     // 创建测试配置内容
     val testConfigContent = """
 # Base configuration
-base:
-  service:
-    ports:
-      app: 9090
-    start:
-      command: systemctl restart
+common:
+  base:
+    service:
+      ports:
+        app: 9090
+      start:
+        command: systemctl restart
 
 # Environment configurations
 environments:
@@ -40,7 +41,7 @@ environments:
     try {
         // 测试解析功能
         val parsedConfig = ConfigMerger.parseSimpleYamlWithBase(tempFile)
-        println("基础配置项数: ${parsedConfig.baseConfig.size}")
+        println("通用配置项数: ${parsedConfig.commonConfigs.size}")
         println("环境配置数: ${parsedConfig.envConfigs.size}")
         
         // 测试dev环境（有继承）
@@ -50,7 +51,7 @@ environments:
         
         // 验证继承是否工作
         val hasInheritance = devConfig.containsKey("service.start.command")
-        val hasOverride = devConfig["service.ports.app"] == "8080"
+        val hasOverride = devConfig["service_ports.app"] == "8080"
         println("\n继承功能正常: $hasInheritance")
         println("覆盖功能正常: $hasOverride")
         

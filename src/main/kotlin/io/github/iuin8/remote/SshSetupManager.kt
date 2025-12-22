@@ -347,7 +347,7 @@ object SshSetupManager {
      * 检测是否为 Windows 系统
      */
     private fun isWindows(): Boolean {
-        return System.getProperty("os.name").lowercase().contains("win")
+        return System.getProperty("os.name").toLowerCase().contains("win")
     }
     
     /**
