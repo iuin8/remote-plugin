@@ -140,7 +140,7 @@ class RemotePlugin : Plugin<Project> {
                 println("[cmd] $chownCmdStr")
                 task.project.exec { it.commandLine("ssh", remoteServer, "bash -lc 'chown www:www $remoteBaseDir/$serviceName/$serviceName-*.jar'") }
 
-                val startCmd = io.github.iuin8.remote.RemotePluginUtils.resolveStartCommand(task, remoteBaseDir, serviceName)
+                val startCmd = io.github.iuin8.remote.RemotePluginUtils.resolveStartCommand(task, remoteBaseDir, serviceName, servicePort)
                 val sshStartCmdStr = "ssh $remoteServer bash -lc 'su - www -c \"$startCmd\"'"
                 println("[cmd] $sshStartCmdStr")
                 task.commandLine("ssh", remoteServer, "bash -lc 'su - www -c \"$startCmd\"'")
@@ -170,7 +170,7 @@ class RemotePlugin : Plugin<Project> {
                 if (remoteBaseDir.isBlank()) throw GradleException("remote.base_dir 未设置")
                 val serviceName = task.project.name
                 val servicePort = RemotePluginUtils.getServicePort(task, scriptDir)
-                val startCmd = RemotePluginUtils.resolveStartCommand(task, remoteBaseDir, serviceName)
+                val startCmd = RemotePluginUtils.resolveStartCommand(task, remoteBaseDir, serviceName, servicePort)
                 val envMap = RemotePluginUtils.resolveStartEnv(task, remoteBaseDir, serviceName, servicePort)
                 val export = RemotePluginUtils.buildExportEnv(envMap)
                 val full = if (export.isBlank()) startCmd else "$export && $startCmd"
@@ -250,7 +250,8 @@ class RemotePlugin : Plugin<Project> {
                 val remoteBaseDir = if (extra.has("remote.base_dir")) extra.get("remote.base_dir").toString() else ""
                 if (remoteBaseDir.isBlank()) throw GradleException("remote.base_dir 未设置")
                 val serviceName = task.project.name
-                val startCmd = RemotePluginUtils.resolveStartCommand(task, remoteBaseDir, serviceName)
+                val servicePort = RemotePluginUtils.getServicePort(task, "") // scriptDir is unused
+                val startCmd = RemotePluginUtils.resolveStartCommand(task, remoteBaseDir, serviceName, servicePort)
                 val restartCmdStr = "ssh -tt -o SendEnv=TERM -o RequestTTY=force $remoteServer bash -lc 'su - www -c \"$startCmd\"'"
                 println("[cmd] $restartCmdStr")
                 task.setCommandLine(listOf("ssh", "-tt", "-o", "SendEnv=TERM", "-o", "RequestTTY=force", remoteServer, "bash -lc 'su - www -c \"$startCmd\"'"))
@@ -284,7 +285,8 @@ class RemotePlugin : Plugin<Project> {
                 val extra = task.extensions.extraProperties
                 val remoteServer = extra.get("ssh.server").toString()
                 val remoteBaseDir = if (extra.has("remote.base_dir")) extra.get("remote.base_dir").toString() else ""
-                val logFilePath = RemotePluginUtils.resolveLogFilePath(task, serviceName, remoteBaseDir)
+                val servicePort = RemotePluginUtils.getServicePort(task, "") // scriptDir is unused
+                val logFilePath = RemotePluginUtils.resolveLogFilePath(task, serviceName, remoteBaseDir, servicePort)
 
                 println("找到服务 $serviceName")
                 println("正在通过SSH连接到 $remoteServer 并开始打印服务 $serviceName 的日志 $logFilePath")

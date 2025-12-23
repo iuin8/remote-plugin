@@ -21,11 +21,15 @@ object RemotePluginUtils {
      */
     fun replacePlaceholders(value: String, serviceName: String, remoteBaseDir: String, servicePort: String): String {
         return value
-            .replace("\${service}", serviceName)
-            .replace("\${SERVICE_NAME}", serviceName)
-            .replace("\${remote.base.dir}", remoteBaseDir)
-            .replace("\${REMOTE_BASE_DIR}", remoteBaseDir)
-            .replace("\${SERVICE_PORT}", servicePort)
+            .replace("${'$'}{service}", serviceName)
+            .replace("${'$'}{SERVICE_NAME}", serviceName)
+            .replace("${'$'}{remote.base.dir}", remoteBaseDir)
+            .replace("${'$'}{REMOTE_BASE_DIR}", remoteBaseDir)
+            .replace("${'$'}{SERVICE_PORT}", servicePort)
+            .replace("${'$'}service", serviceName)
+            .replace("${'$'}SERVICE_NAME", serviceName)
+            .replace("${'$'}REMOTE_BASE_DIR", remoteBaseDir)
+            .replace("${'$'}SERVICE_PORT", servicePort)
     }
     
     /**
@@ -33,8 +37,10 @@ object RemotePluginUtils {
      */
     fun replacePlaceholders(value: String, serviceName: String): String {
         return value
-            .replace("\${service}", serviceName)
-            .replace("\${SERVICE_NAME}", serviceName)
+            .replace("${'$'}{service}", serviceName)
+            .replace("${'$'}{SERVICE_NAME}", serviceName)
+            .replace("${'$'}service", serviceName)
+            .replace("${'$'}SERVICE_NAME", serviceName)
     }
     
     // parseSimpleYaml 已移除，请使用 ConfigMerger.parseSimpleYamlWithBase
@@ -60,19 +66,19 @@ object RemotePluginUtils {
         )
     }
     
-    fun resolveLogFilePath(task: Task, serviceName: String, remoteBaseDir: String): String {
+    fun resolveLogFilePath(task: Task, serviceName: String, remoteBaseDir: String, servicePort: String): String {
         val extra = task.extensions.extraProperties
         val pattern = if (extra.has("log.filePattern")) extra.get("log.filePattern").toString() else null
         if (pattern != null) {
-            return replacePlaceholders(pattern, serviceName, remoteBaseDir, "")
+            return replacePlaceholders(pattern, serviceName, remoteBaseDir, servicePort)
         }
         return "$remoteBaseDir/../logs/$serviceName.log"
     }
     
-    fun resolveStartCommand(task: Task, remoteBaseDir: String, serviceName: String): String {
+    fun resolveStartCommand(task: Task, remoteBaseDir: String, serviceName: String, servicePort: String): String {
         val extra = task.extensions.extraProperties
         var cmd = if (extra.has("start.command")) extra.get("start.command").toString() else "$remoteBaseDir/$serviceName/$serviceName-start.sh"
-        return replacePlaceholders(cmd, serviceName, remoteBaseDir, "")
+        return replacePlaceholders(cmd, serviceName, remoteBaseDir, servicePort)
     }
 
     fun resolveStartEnv(task: Task, remoteBaseDir: String, serviceName: String, servicePort: String): Map<String, String> {
