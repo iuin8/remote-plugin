@@ -27,16 +27,8 @@ class RemotePlugin : Plugin<Project> {
         val remoteYmlFile = File(project.rootDir, "gradle/remote-plugin/remote.yml")
         if (remoteYmlFile.exists()) {
             try {
-                val config = RemotePluginUtils.parseSimpleYaml(remoteYmlFile)
-                // 提取所有environments.XXX前缀的环境名
-                config.keys.forEach { key ->
-                    if (key.startsWith("environments.")) {
-                        val parts = key.split('.')
-                        if (parts.size >= 3) {
-                            environments.add(parts[1])
-                        }
-                    }
-                }
+                val parsedConfig = ConfigMerger.parseSimpleYamlWithBase(remoteYmlFile)
+                environments.addAll(parsedConfig.envConfigs.keys)
             } catch (e: Exception) {
                 println("[remote-plugin] 解析remote.yml时出错: ${e.message}")
             }
@@ -106,13 +98,13 @@ class RemotePlugin : Plugin<Project> {
                 RemotePluginUtils.envLoad(task, profile)
 
                 val extra = task.extensions.extraProperties
-                println("[publish] 项目: ${task.project.name} 环境: $profile 服务器: ${if (extra.has("remote.server")) extra.get("remote.server") else "未设置"} 基础目录: ${if (extra.has("remote.base.dir")) extra.get("remote.base.dir") else "未设置"}")
-                if (!extra.has("remote.server")) {
+                println("[publish] 项目: ${task.project.name} 环境: $profile 服务器: ${if (extra.has("ssh.server")) extra.get("ssh.server") else "未设置"} 基础目录: ${if (extra.has("remote.base_dir")) extra.get("remote.base_dir") else "未设置"}")
+                if (!extra.has("ssh.server")) {
                     val allProperties = mutableMapOf<String, Any?>()
                     extra.properties.forEach { (key, value) ->
                         allProperties[key] = value
                     }
-                    throw GradleException("环境变量不存在，当前所有属性: $allProperties")
+                    throw GradleException("环境变量 ssh.server 不存在，当前所有属性: $allProperties")
                 }
 
                 // 读取服务端口并注入环境变量
@@ -122,17 +114,17 @@ class RemotePlugin : Plugin<Project> {
                     mapOf(
                         "TERM" to "xterm",
                         "LOCAL_BASE_DIR" to task.project.rootDir.absolutePath,
-                        "REMOTE_SERVER" to extra.get("remote.server").toString(),
-                        "REMOTE_BASE_DIR" to if (extra.has("remote.base.dir")) extra.get("remote.base.dir").toString() else "",
+                        "REMOTE_SERVER" to extra.get("ssh.server").toString(),
+                        "REMOTE_BASE_DIR" to if (extra.has("remote.base_dir")) extra.get("remote.base_dir").toString() else "",
                         "SERVICE_NAME" to task.project.name,
                         "SERVICE_PORT" to servicePort,
                         "SERVICE_DIR" to java.io.File(task.project.rootDir, task.project.name).absolutePath
                     )
                 )
 
-                val remoteServer = extra.get("remote.server").toString()
-                val remoteBaseDir = if (extra.has("remote.base.dir")) extra.get("remote.base.dir").toString() else ""
-                if (remoteBaseDir.isBlank()) throw GradleException("remote.base.dir 未设置")
+                val remoteServer = extra.get("ssh.server").toString()
+                val remoteBaseDir = if (extra.has("remote.base_dir")) extra.get("remote.base_dir").toString() else ""
+                if (remoteBaseDir.isBlank()) throw GradleException("remote.base_dir 未设置")
                 val serviceName = task.project.name
                 val serviceDir = File(task.project.rootDir, serviceName)
                 val libsDir = File(serviceDir, "build/libs")
@@ -171,7 +163,7 @@ class RemotePlugin : Plugin<Project> {
                 if (!extra.has("ssh.server")) {
                     val allProperties = mutableMapOf<String, Any?>()
                     extra.properties.forEach { (key, value) -> allProperties[key] = value }
-                    throw GradleException("环境变量不存在，当前所有属性: $allProperties")
+                    throw GradleException("环境变量 ssh.server 不存在，当前所有属性: $allProperties")
                 }
                 val remoteServer = extra.get("ssh.server").toString()
                 val remoteBaseDir = if (extra.has("remote.base_dir")) extra.get("remote.base_dir").toString() else ""
@@ -209,6 +201,10 @@ class RemotePlugin : Plugin<Project> {
                 val arthasPort = "1$servicePort"
 
                 val extra = task.extensions.extraProperties
+                println("[arthas] 项目: ${task.project.name} 环境: $profile 服务器: ${if (extra.has("ssh.server")) extra.get("ssh.server") else "未设置"} 基础目录: ${if (extra.has("remote.base_dir")) extra.get("remote.base_dir") else "未设置"}")
+                if (!extra.has("ssh.server")) {
+                    throw GradleException("环境变量 ssh.server 不存在")
+                }
                 task.environment(
                     mapOf(
                         "TERM" to "xterm",
@@ -244,10 +240,11 @@ class RemotePlugin : Plugin<Project> {
             task.doFirst {
                 RemotePluginUtils.envLoad(task, profile)
                 val extra = task.extensions.extraProperties
+                println("[restart] 项目: ${task.project.name} 环境: $profile 服务器: ${if (extra.has("ssh.server")) extra.get("ssh.server") else "未设置"} 基础目录: ${if (extra.has("remote.base_dir")) extra.get("remote.base_dir") else "未设置"}")
                 if (!extra.has("ssh.server")) {
                     val all = mutableMapOf<String, Any?>()
                     extra.properties.forEach { (k, v) -> all[k] = v }
-                    throw GradleException("环境变量不存在，当前所有属性: $all")
+                    throw GradleException("环境变量 ssh.server 不存在，当前所有属性: $all")
                 }
                 val remoteServer = extra.get("ssh.server").toString()
                 val remoteBaseDir = if (extra.has("remote.base_dir")) extra.get("remote.base_dir").toString() else ""

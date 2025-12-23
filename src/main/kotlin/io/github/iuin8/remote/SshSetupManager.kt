@@ -69,8 +69,9 @@ object SshSetupManager {
         
         if (remoteYmlFile.exists()) {
             try {
-                val config = RemotePluginUtils.parseSimpleYaml(remoteYmlFile)
-                autoKeygen = config["ssh.setup.auto.keygen"]?.toBoolean() ?: false
+                val parsedConfig = ConfigMerger.parseSimpleYamlWithBase(remoteYmlFile)
+                val baseConfig = parsedConfig.commonConfigs["base"] ?: emptyMap()
+                autoKeygen = baseConfig["ssh.setup.auto.keygen"]?.toBoolean() ?: false
             } catch (e: Exception) {
                 println("[remote-plugin] [WARN] 解析 remote.yml 配置时出错: ${e.message}")
             }

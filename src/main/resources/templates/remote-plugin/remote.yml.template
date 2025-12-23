@@ -4,6 +4,10 @@
 # Base configuration (can be extended by environments)
 common:
   base:
+    jenkins:
+      url: "https://your-jenkins-url.com"
+      user: "your_username"
+      token: "your_api_token"
     remote:
       base_dir: /path/to/your/app
     env:
@@ -37,20 +41,22 @@ environments:
     ssh:
       server: your-server-hostname
     jenkins:
-      url: "https://your-jenkins-url.com"
-      user: "your_username"
-      token: "your_api_token"
       job: "your-job-name"
 
-  # Test environment configuration
-  # test:
-  #   extends: other
-  #   ssh:
-  #     server: test-server-hostname
-  #   service_ports:
-  #     app: 8080
-  #   log:
-  #     filePattern: ${REMOTE_BASE_DIR}/../logs/${service}.log
+# Test environment configuration
+#  test:
+#    extends: other
+#    ssh:
+#      server: test-server-hostname
+#    service_ports:
+#      app: 8080
+#    log:
+#      filePattern: ${REMOTE_BASE_DIR}/../logs/${service}.log
+#    jenkins:
+#      url: "https://your-jenkins-url-1.com"
+#      user: "your_username_1"
+#      token: "your_api_token_1"
+#      job: "your-job-name-1"
 
 # Supported placeholders:
 #   - ${service}            : current Gradle project name

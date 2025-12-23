@@ -4,29 +4,24 @@
 # Base configuration (can be extended by environments)
 common:
   base:
+    jenkins:
+      url: "https://your-jenkins-url.com"
+      user: "your_username"
+      token: "your_api_token"
     remote:
       base_dir: /path/to/your/app
     env:
-      # JDK 8
-      # JAVA_TOOL_OPTIONS: -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=3${SERVICE_PORT}
-      # JDK 9+
       JAVA_TOOL_OPTIONS: -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:3${SERVICE_PORT}
     start:
-      # command: ${REMOTE_BASE_DIR}/${SERVICE_NAME}/${SERVICE_NAME}-start.sh
       command: sudo systemctl restart ${SERVICE_NAME}
     log:
       filePattern: ${REMOTE_BASE_DIR}/../logs/${service}.log
-    service_ports:
-        app: 8080
     ssh:
       setup:
         auto:
-          keygen: false  # 是否自动生成密钥，默认 false
-        key:
-          type: ed25519  # 密钥类型，默认 ed25519
-#  other:
-#    remote:
-#      base_dir: /path/to/your/app
+          keygen: false
+    service_ports:
+      app: 8080
 
 # Environment configurations
 # Each environment can have its own settings
@@ -37,24 +32,11 @@ environments:
     ssh:
       server: your-server-hostname
     jenkins:
-      url: "https://your-jenkins-url.com"
-      user: "your_username"
-      token: "your_api_token"
       job: "your-job-name"
-
-  # Test environment configuration
-  # test:
-  #   extends: other
-  #   ssh:
-  #     server: test-server-hostname
-  #   service_ports:
-  #     app: 8080
-  #   log:
-  #     filePattern: ${REMOTE_BASE_DIR}/../logs/${service}.log
 
 # Supported placeholders:
 #   - ${service}            : current Gradle project name
-#   - ${REMOTE_BASE_DIR}    : value of remote.base.dir
+#   - ${REMOTE_BASE_DIR}    : value of remote.base_dir
 #   - ${remote.base.dir}    : same as above
 #   - ${SERVICE_NAME}       : same as ${service}
 #   - ${SERVICE_PORT}       : service port

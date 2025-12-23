@@ -22,15 +22,10 @@ object RemotePluginUtils {
     fun replacePlaceholders(value: String, serviceName: String, remoteBaseDir: String, servicePort: String): String {
         return value
             .replace("\${service}", serviceName)
-            .replace("\$service", serviceName)
             .replace("\${SERVICE_NAME}", serviceName)
-            .replace("\$SERVICE_NAME", serviceName)
             .replace("\${remote.base.dir}", remoteBaseDir)
-            .replace("\$remote.base.dir", remoteBaseDir)
             .replace("\${REMOTE_BASE_DIR}", remoteBaseDir)
-            .replace("\$REMOTE_BASE_DIR", remoteBaseDir)
             .replace("\${SERVICE_PORT}", servicePort)
-            .replace("\$SERVICE_PORT", servicePort)
     }
     
     /**
@@ -39,108 +34,35 @@ object RemotePluginUtils {
     fun replacePlaceholders(value: String, serviceName: String): String {
         return value
             .replace("\${service}", serviceName)
-            .replace("\$service", serviceName)
             .replace("\${SERVICE_NAME}", serviceName)
-            .replace("\$SERVICE_NAME", serviceName)
     }
     
-    /**
-     * 解析YAML配置文件，支持嵌套结构
-     */
-    fun parseSimpleYaml(file: File): Map<String, String> {
-        val config = mutableMapOf<String, String>()
-        val prefixStack = mutableListOf<String>()
-        
-        file.forEachLine { raw ->
-            // 计算缩进级别
-            val indentCount = raw.takeWhile { it == ' ' }.length
-            val line = raw.trim()
-            
-            // 跳过空行和注释
-            if (line.isEmpty() || line.startsWith("#")) return@forEachLine
-            
-            // 处理键值对或嵌套键
-            if (line.endsWith(":")) {
-                // 嵌套键（只有冒号，没有值）
-                val key = line.substringBeforeLast(":").trim()
-                
-                // 根据缩进级别调整前缀栈
-                while (prefixStack.size > indentCount / 2) {
-                    prefixStack.removeLast()
-                }
-                
-                // 添加当前键到前缀栈
-                prefixStack.add(key)
-            } else if (line.contains(":")) {
-                // 键值对（包含冒号和值）
-                val parts = line.split(":", limit = 2)
-                if (parts.size == 2) {
-                    val key = parts[0].trim()
-                    var value = parts[1].trim()
-                    
-                    // 构建完整的嵌套键名（如 log.filePattern）
-                    val fullKey = if (prefixStack.isNotEmpty()) {
-                        prefixStack.joinToString(".") + "." + key
-                    } else {
-                        key
-                    }
-                    
-                    // 移除引号
-                    if ((value.startsWith("\"") && value.endsWith("\"")) || (value.startsWith("'") && value.endsWith("'"))) {
-                        value = value.substring(1, value.length - 1)
-                    }
-                    
-                    config[fullKey] = value
-                }
-            }
-        }
-        return config
-    }
-    
-    /**
-     * 读取Jenkins配置
-     * 支持在job路径中使用 ${service} 占位符，或自动添加服务名
-     */
-    fun getJenkinsConfig(task: Task, profile: String): Map<String, String?> {
-        val scriptDirFile = File(task.project.rootDir, "gradle/remote-plugin")
-        val cfgFile = File(scriptDirFile, "remote.yml")
-        if (!cfgFile.exists()) {
-            return emptyMap()
-        }
+    // parseSimpleYaml 已移除，请使用 ConfigMerger.parseSimpleYamlWithBase
 
-        val config = parseSimpleYaml(cfgFile)
+    fun getJenkinsConfig(task: Task, profile: String): Map<String, String?> {
+        val extra = task.extensions.extraProperties
         val serviceName = task.project.name
         
-        // 只读取 jenkins.url, jenkins.user, jenkins.token, jenkins.job 配置
-        var jobPath = config["jenkins.job"]
+        var jobPath = if (extra.has("jenkins.job")) extra.get("jenkins.job").toString() else null
         
         if (jobPath != null) {
-            // 如果路径中包含占位符，则替换
             jobPath = replacePlaceholders(jobPath, serviceName)
-            
-            // 如果没有占位符且不包含服务名，自动在末尾添加 /${service}
             if (!jobPath.contains(serviceName)) {
                 jobPath = "$jobPath/$serviceName"
             }
         }
         
         return mapOf(
-            "url" to config["jenkins.url"],
-            "user" to config["jenkins.user"],
-            "token" to config["jenkins.token"],
+            "url" to if (extra.has("jenkins.url")) extra.get("jenkins.url").toString() else null,
+            "user" to if (extra.has("jenkins.user")) extra.get("jenkins.user").toString() else null,
+            "token" to if (extra.has("jenkins.token")) extra.get("jenkins.token").toString() else null,
             "job" to jobPath
         )
     }
     
-    /**
-     * 解析日志文件路径
-     */
     fun resolveLogFilePath(task: Task, serviceName: String, remoteBaseDir: String): String {
-        val scriptDirFile = File(task.project.rootDir, "gradle/remote-plugin")
-        val cfgFile = File(scriptDirFile, "remote.yml")
-        if (!cfgFile.exists()) return "$remoteBaseDir/../logs/$serviceName.log"
-        val config = parseSimpleYaml(cfgFile)
-        val pattern = config["log.filePattern"]
+        val extra = task.extensions.extraProperties
+        val pattern = if (extra.has("log.filePattern")) extra.get("log.filePattern").toString() else null
         if (pattern != null) {
             return replacePlaceholders(pattern, serviceName, remoteBaseDir, "")
         }
@@ -148,32 +70,18 @@ object RemotePluginUtils {
     }
     
     fun resolveStartCommand(task: Task, remoteBaseDir: String, serviceName: String): String {
-        val scriptDirFile = File(task.project.rootDir, "gradle/remote-plugin")
-        val cfgFile = File(scriptDirFile, "remote.yml")
-        var cmd = "$remoteBaseDir/$serviceName/$serviceName-start.sh"
-        if (cfgFile.exists()) {
-            val config = parseSimpleYaml(cfgFile)
-            val v = config["start.command"]
-            if (v != null) cmd = v
-        }
+        val extra = task.extensions.extraProperties
+        var cmd = if (extra.has("start.command")) extra.get("start.command").toString() else "$remoteBaseDir/$serviceName/$serviceName-start.sh"
         return replacePlaceholders(cmd, serviceName, remoteBaseDir, "")
     }
 
     fun resolveStartEnv(task: Task, remoteBaseDir: String, serviceName: String, servicePort: String): Map<String, String> {
-        val scriptDirFile = File(task.project.rootDir, "gradle/remote-plugin")
-        val cfgFile = File(scriptDirFile, "remote.yml")
-        if (!cfgFile.exists()) return emptyMap()
-        val config = parseSimpleYaml(cfgFile)
+        val extra = task.extensions.extraProperties
         val result = mutableMapOf<String, String>()
-        config.entries.forEach { (k, v) ->
-            val isEnv = k.startsWith("env.") || k.startsWith("service.env.")
-            if (isEnv) {
-                val key = if (k.startsWith("env.")) {
-                    k.substring("env.".length)
-                } else {
-                    k.substring("service.env.".length)
-                }
-                val value = replacePlaceholders(v, serviceName, remoteBaseDir, servicePort)
+        extra.properties.forEach { (k, v) ->
+            if (k.startsWith("env.")) {
+                val key = k.substring("env.".length)
+                val value = replacePlaceholders(v.toString(), serviceName, remoteBaseDir, servicePort)
                 result[key] = value
             }
         }
@@ -210,21 +118,16 @@ object RemotePluginUtils {
             try {
                 // 使用新的配置合并机制
                 val mergedConfig = ConfigMerger.getMergedConfigForEnvironment(remoteYmlFile, profile)
-                println("[DEBUG-envLoad] 解析remote.yml成功，共加载 ${mergedConfig.size} 个配置项")
-                
-                // 打印所有配置项（用于调试）
-                println("[DEBUG-envLoad] 合并后的配置项: $mergedConfig")
                 
                 // 应用配置到任务属性
                 val loadedProperties = mutableMapOf<String, String>()
                 mergedConfig.entries.forEach { (key, value) ->
                     extra.set(key, value)
                     loadedProperties[key] = value
-                    println("[DEBUG-envLoad] 从remote.yml加载配置: $key=$value")
                 }
                 
                 if (loadedProperties.isNotEmpty()) {
-                    println("[DEBUG-envLoad] 成功从remote.yml加载 ${loadedProperties.size} 个环境配置项")
+                    println("[remote-plugin] 成功从remote.yml加载 ${loadedProperties.size} 个环境 $profile 的配置项")
                     return true
                 } else {
                     println("[DEBUG-envLoad] No config found for environment $profile in remote.yml")
@@ -234,6 +137,22 @@ object RemotePluginUtils {
                 e.printStackTrace()
             } catch (e: Exception) {
                 println("[DEBUG-envLoad] Error parsing remote.yml: ${e.message}")
+                e.printStackTrace()
+            }
+            
+            // SshSetupManager 相关的逻辑，用于在初始化阶段获取 autoKeygen 配置
+            try {
+                // SshSetupManager 属于初始化阶段，此时还没有 profile，直接解析
+                val parsedConfig = ConfigMerger.parseSimpleYamlWithBase(remoteYmlFile)
+                // 查找所有 environments 中的 ssh.setup.auto.keygen，或者 common 中的
+                // 这里为了精简，我们先取 base 配置（通常是 common.base）
+                val baseConfig = parsedConfig.commonConfigs["base"] ?: emptyMap()
+                val autoKeygen = (baseConfig["ssh.setup.auto.keygen"]?.toBoolean() ?: false)
+                // 将 autoKeygen 存储到 extra properties，以便 SshSetupManager 访问
+                extra.set("ssh.setup.auto.keygen", autoKeygen)
+                println("[DEBUG-envLoad] 从remote.yml加载 ssh.setup.auto.keygen: $autoKeygen")
+            } catch (e: Exception) {
+                println("[DEBUG-envLoad] Error parsing remote.yml for ssh.setup.auto.keygen: ${e.message}")
                 e.printStackTrace()
             }
         } else {
@@ -257,53 +176,17 @@ object RemotePluginUtils {
         }
     }
 
-    /**
-     * 获取服务端口
-     */
     fun getServicePort(task: Task, scriptDir: String): String {
-        // 读取YAML配置文件
-        val configFile = File(scriptDir, "remote.yml")
-        if (!configFile.exists()) {
-            val sample = """
-service_ports:
-    ${task.project.name}: 8080"""
-            val msg = """
-[remote-plugin] 配置文件缺失
-[remote-plugin] 缺失文件, 请创建文件: ${configFile.absolutePath}
-[remote-plugin] 示例: $sample
-[remote-plugin] 说明: 在service_ports下配置服务端口；Arthas 端口 = 1 + 服务端口
-"""
-                .trimIndent()
-            throw GradleException(msg)
-        }
-        
-        // 使用配置合并机制获取环境配置
-        val profile = task.name.split('_')[0] // 从任务名中提取环境（如dev_arthas -> dev）
-        val mergedConfig = ConfigMerger.getMergedConfigForEnvironment(configFile, profile)
+        val extra = task.extensions.extraProperties
         val serviceName = task.project.name
-        
-        // 尝试多种可能的键名格式
-        val possiblePortKeys = listOf(
-            "service_ports.$serviceName",
-            "remote.service_ports.$serviceName"
-        )
-        
-        var port: String? = null
-        for (portKey in possiblePortKeys) {
-            port = mergedConfig[portKey]
-            if (port != null) {
-                break
-            }
-        }
+        val port = if (extra.has("service_ports.$serviceName")) extra.get("service_ports.$serviceName").toString() else null
         
         if (port == null) {
-            val sample = """
-service_ports:
-    ${task.project.name}: 8080"""
             val msg = """
-[remote-plugin] 未找到服务 ${task.project.name} 的端口映射
-[remote-plugin] 请在 ${configFile.absolutePath} 的service_ports下添加条目, 示例: $sample
-[remote-plugin] 说明: 配置格式为 service_ports.<服务名>: <端口号>；Arthas 端口 = 1 + 服务端口
+[remote-plugin] 未找到服务 $serviceName 的端口映射
+[remote-plugin] 请在 remote.yml 的 service_ports 下添加条目:
+service_ports:
+    $serviceName: 8080
 """
                 .trimIndent()
             throw GradleException(msg)
