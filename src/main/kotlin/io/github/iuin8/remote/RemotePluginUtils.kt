@@ -111,15 +111,29 @@ object RemotePluginUtils {
     }
 
     /**
-     * 将命令包装在 su - user -c 中，并处理引号转义
+     * 智能包装远程命令，同时兼顾安全性和可读性
+     * 1. 如果指定了 user，使用 su - user -c '...' 包装
+     * 2. 外部使用 bash -lc '...' 包装以确保加载环境变量
+     * 3. 内部优先使用双引号包装以减少单引号转义带来的 '\''' 丑陋输出
      */
-    fun wrapWithUser(command: String, user: String): String {
-        if (user.isBlank()) return command
-        // 如果指定了用户，使用 su - user -c 'command' 包装
-        // 使用单引号包装内部命令可以大幅减少双引号转义，使日志和代码更易读
-        // 只需要处理命令中原有的单引号
-        val escapedCmd = command.replace("'", "'\\''")
-        return "su - $user -c '$escapedCmd'"
+    fun wrapRemoteCommand(command: String, user: String): String {
+        val wrappedUser = if (user.isBlank()) {
+            command
+        } else {
+            // 如果命令中包含双引号或 $，则使用单引号包装以保安全
+            // 否则使用双引号以提供更好的可读性（避免 '\'''）
+            if (command.contains("\"") || command.contains("$")) {
+                val escaped = command.replace("'", "'\\''")
+                "su - $user -c '$escaped'"
+            } else {
+                "su - $user -c \"$command\""
+            }
+        }
+        
+        // 外部始终使用单引号，因为这是作为 SSH 的最后一个参数传递的
+        // 即使内部用了双引号，外部的单引号也能防止本地 Shell 解析
+        val escapedBash = wrappedUser.replace("'", "'\\''")
+        return "bash -lc '$escapedBash'"
     }
 
     /**

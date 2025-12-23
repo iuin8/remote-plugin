@@ -145,10 +145,10 @@ class RemotePlugin : Plugin<Project> {
                 }
 
                 val startCmd = io.github.iuin8.remote.RemotePluginUtils.resolveStartCommand(task, remoteBaseDir, serviceName, servicePort)
-                val finalStartCmd = RemotePluginUtils.wrapWithUser(startCmd, sshUser)
-                val sshStartCmdStr = "ssh $remoteServer bash -lc '$finalStartCmd'"
-                println("[cmd] $sshStartCmdStr")
-                task.commandLine("ssh", remoteServer, "bash", "-lc", finalStartCmd)
+                val remoteCmd = RemotePluginUtils.wrapRemoteCommand(startCmd, sshUser)
+                
+                println("[cmd] ssh $remoteServer $remoteCmd")
+                task.commandLine("ssh", remoteServer, remoteCmd)
             }
 
             task.doLast {
@@ -181,11 +181,10 @@ class RemotePlugin : Plugin<Project> {
                 val full = if (export.isBlank()) startCmd else "$export && $startCmd"
                 
                 val sshUser = if (extra.has("ssh.user")) extra.get("ssh.user").toString() else ""
-                val finalFullCmd = RemotePluginUtils.wrapWithUser(full, sshUser)
+                val remoteCmd = RemotePluginUtils.wrapRemoteCommand(full, sshUser)
                 
-                val debugSshCmdStr = "ssh -tt -o SendEnv=TERM -o RequestTTY=force $remoteServer bash -lc '$finalFullCmd'"
-                println("[cmd] $debugSshCmdStr")
-                task.setCommandLine(listOf("ssh", "-tt", "-o", "SendEnv=TERM", "-o", "RequestTTY=force", remoteServer, "bash -lc", finalFullCmd))
+                println("[cmd] ssh -tt -o SendEnv=TERM -o RequestTTY=force $remoteServer $remoteCmd")
+                task.setCommandLine(listOf("ssh", "-tt", "-o", "SendEnv=TERM", "-o", "RequestTTY=force", remoteServer, remoteCmd))
                 task.standardInput = System.`in`
                 task.standardOutput = System.out
                 task.errorOutput = System.err
@@ -263,11 +262,10 @@ class RemotePlugin : Plugin<Project> {
                 val startCmd = RemotePluginUtils.resolveStartCommand(task, remoteBaseDir, serviceName, servicePort)
                 
                 val sshUser = if (extra.has("ssh.user")) extra.get("ssh.user").toString() else ""
-                val finalStartCmd = RemotePluginUtils.wrapWithUser(startCmd, sshUser)
+                val remoteCmd = RemotePluginUtils.wrapRemoteCommand(startCmd, sshUser)
                 
-                val restartCmdStr = "ssh -tt -o SendEnv=TERM -o RequestTTY=force $remoteServer bash -lc '$finalStartCmd'"
-                println("[cmd] $restartCmdStr")
-                task.setCommandLine(listOf("ssh", "-tt", "-o", "SendEnv=TERM", "-o", "RequestTTY=force", remoteServer, "bash -lc", finalStartCmd))
+                println("[cmd] ssh -tt -o SendEnv=TERM -o RequestTTY=force $remoteServer $remoteCmd")
+                task.setCommandLine(listOf("ssh", "-tt", "-o", "SendEnv=TERM", "-o", "RequestTTY=force", remoteServer, remoteCmd))
                 task.standardInput = System.`in`
                 task.standardOutput = System.out
                 task.errorOutput = System.err

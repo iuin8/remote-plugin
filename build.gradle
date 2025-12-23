@@ -6,7 +6,7 @@ plugins {
 }
 
 group = 'io.github.iuin8'
-version = '1.0.8'
+version = '1.1.0'
 
 def secretsFile = file("support-tools/secrets/gradle/${rootProject.name}/secrets.properties")
 if (secretsFile.exists()) {
