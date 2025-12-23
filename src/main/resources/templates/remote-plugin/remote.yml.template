@@ -49,6 +49,7 @@ common:
     service_ports:
         app: 8080
     ssh:
+      user: www  # 远程执行命令的用户，不配置则使用当前 SSH 用户
       setup:
         auto:
           keygen: false  # 是否自动生成密钥，默认 false

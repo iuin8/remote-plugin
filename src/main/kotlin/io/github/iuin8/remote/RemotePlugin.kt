@@ -135,15 +135,20 @@ class RemotePlugin : Plugin<Project> {
                 val scpCmdStr = "scp ${jar.absolutePath} $scpTarget"
                 println("[cmd] $scpCmdStr")
                 task.project.exec { it.commandLine("scp", jar.absolutePath, "$remoteServer:$remoteBaseDir/$serviceName/") }
+                val sshUser = if (extra.has("ssh.user")) extra.get("ssh.user").toString() else ""
+                
                 val chownTarget = "$remoteBaseDir/$serviceName/$serviceName-*.jar"
-                val chownCmdStr = "ssh $remoteServer bash -lc 'chown www:www $chownTarget'"
-                println("[cmd] $chownCmdStr")
-                task.project.exec { it.commandLine("ssh", remoteServer, "bash -lc 'chown www:www $remoteBaseDir/$serviceName/$serviceName-*.jar'") }
+                if (sshUser.isNotBlank()) {
+                    val chownCmdStr = "ssh $remoteServer bash -lc 'chown $sshUser:$sshUser $chownTarget'"
+                    println("[cmd] $chownCmdStr")
+                    task.project.exec { it.commandLine("ssh", remoteServer, "bash -lc 'chown $sshUser:$sshUser $chownTarget'") }
+                }
 
                 val startCmd = io.github.iuin8.remote.RemotePluginUtils.resolveStartCommand(task, remoteBaseDir, serviceName, servicePort)
-                val sshStartCmdStr = "ssh $remoteServer bash -lc 'su - www -c \"$startCmd\"'"
+                val finalStartCmd = RemotePluginUtils.wrapWithUser(startCmd, sshUser)
+                val sshStartCmdStr = "ssh $remoteServer bash -lc '$finalStartCmd'"
                 println("[cmd] $sshStartCmdStr")
-                task.commandLine("ssh", remoteServer, "bash -lc 'su - www -c \"$startCmd\"'")
+                task.commandLine("ssh", remoteServer, "bash", "-lc", finalStartCmd)
             }
 
             task.doLast {
@@ -174,9 +179,13 @@ class RemotePlugin : Plugin<Project> {
                 val envMap = RemotePluginUtils.resolveStartEnv(task, remoteBaseDir, serviceName, servicePort)
                 val export = RemotePluginUtils.buildExportEnv(envMap)
                 val full = if (export.isBlank()) startCmd else "$export && $startCmd"
-                val debugSshCmdStr = "ssh -tt -o SendEnv=TERM -o RequestTTY=force $remoteServer bash -lc 'su - www -c \"$full\"'"
+                
+                val sshUser = if (extra.has("ssh.user")) extra.get("ssh.user").toString() else ""
+                val finalFullCmd = RemotePluginUtils.wrapWithUser(full, sshUser)
+                
+                val debugSshCmdStr = "ssh -tt -o SendEnv=TERM -o RequestTTY=force $remoteServer bash -lc '$finalFullCmd'"
                 println("[cmd] $debugSshCmdStr")
-                task.setCommandLine(listOf("ssh", "-tt", "-o", "SendEnv=TERM", "-o", "RequestTTY=force", remoteServer, "bash -lc 'su - www -c \"$full\"'"))
+                task.setCommandLine(listOf("ssh", "-tt", "-o", "SendEnv=TERM", "-o", "RequestTTY=force", remoteServer, "bash -lc", finalFullCmd))
                 task.standardInput = System.`in`
                 task.standardOutput = System.out
                 task.errorOutput = System.err
@@ -252,9 +261,13 @@ class RemotePlugin : Plugin<Project> {
                 val serviceName = task.project.name
                 val servicePort = RemotePluginUtils.getServicePort(task, "") // scriptDir is unused
                 val startCmd = RemotePluginUtils.resolveStartCommand(task, remoteBaseDir, serviceName, servicePort)
-                val restartCmdStr = "ssh -tt -o SendEnv=TERM -o RequestTTY=force $remoteServer bash -lc 'su - www -c \"$startCmd\"'"
+                
+                val sshUser = if (extra.has("ssh.user")) extra.get("ssh.user").toString() else ""
+                val finalStartCmd = RemotePluginUtils.wrapWithUser(startCmd, sshUser)
+                
+                val restartCmdStr = "ssh -tt -o SendEnv=TERM -o RequestTTY=force $remoteServer bash -lc '$finalStartCmd'"
                 println("[cmd] $restartCmdStr")
-                task.setCommandLine(listOf("ssh", "-tt", "-o", "SendEnv=TERM", "-o", "RequestTTY=force", remoteServer, "bash -lc 'su - www -c \"$startCmd\"'"))
+                task.setCommandLine(listOf("ssh", "-tt", "-o", "SendEnv=TERM", "-o", "RequestTTY=force", remoteServer, "bash -lc", finalStartCmd))
                 task.standardInput = System.`in`
                 task.standardOutput = System.out
                 task.errorOutput = System.err

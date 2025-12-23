@@ -17,6 +17,7 @@ common:
     log:
       filePattern: ${REMOTE_BASE_DIR}/../logs/${service}.log
     ssh:
+      user: www
       setup:
         auto:
           keygen: false

@@ -111,6 +111,18 @@ object RemotePluginUtils {
     }
 
     /**
+     * 将命令包装在 su - user -c 中，并处理引号转义
+     */
+    fun wrapWithUser(command: String, user: String): String {
+        if (user.isBlank()) return command
+        // 如果指定了用户，使用 su - user -c 'command' 包装
+        // 使用单引号包装内部命令可以大幅减少双引号转义，使日志和代码更易读
+        // 只需要处理命令中原有的单引号
+        val escapedCmd = command.replace("'", "'\\''")
+        return "su - $user -c '$escapedCmd'"
+    }
+
+    /**
      * 加载环境配置
      * 支持配置继承机制
      */
