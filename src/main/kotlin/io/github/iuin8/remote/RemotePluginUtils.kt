@@ -49,6 +49,9 @@ object RemotePluginUtils {
         val extra = task.extensions.extraProperties
         val serviceName = task.project.name
         
+        val url = if (extra.has("jenkins.url")) extra.get("jenkins.url").toString() else null
+        val user = if (extra.has("jenkins.user")) extra.get("jenkins.user").toString() else null
+        val token = if (extra.has("jenkins.token")) extra.get("jenkins.token").toString() else null
         var jobPath = if (extra.has("jenkins.job")) extra.get("jenkins.job").toString() else null
         
         if (jobPath != null) {
@@ -59,9 +62,9 @@ object RemotePluginUtils {
         }
         
         return mapOf(
-            "url" to if (extra.has("jenkins.url")) extra.get("jenkins.url").toString() else null,
-            "user" to if (extra.has("jenkins.user")) extra.get("jenkins.user").toString() else null,
-            "token" to if (extra.has("jenkins.token")) extra.get("jenkins.token").toString() else null,
+            "url" to url,
+            "user" to user,
+            "token" to token,
             "job" to jobPath
         )
     }
@@ -112,15 +115,12 @@ object RemotePluginUtils {
      * 支持配置继承机制
      */
     fun envLoad(task: Task, profile: String): Boolean {
-        println("[DEBUG-envLoad] - 开始加载环境配置 - 项目: ${task.project.name} 环境: $profile")
-        
         // 尝试从remote.yml读取环境配置
         val scriptDirFile = File(task.project.rootDir, "gradle/remote-plugin")
         val remoteYmlFile = File(scriptDirFile, "remote.yml")
         val extra: ExtraPropertiesExtension = task.extensions.extraProperties
         
         if (remoteYmlFile.exists()) {
-            println("[DEBUG-envLoad] 发现remote.yml文件: ${remoteYmlFile.absolutePath}")
             try {
                 // 使用新的配置合并机制
                 val mergedConfig = ConfigMerger.getMergedConfigForEnvironment(remoteYmlFile, profile)

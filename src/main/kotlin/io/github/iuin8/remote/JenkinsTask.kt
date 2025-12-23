@@ -10,18 +10,28 @@ object JenkinsTask {
      * 使用 jenkins-client 库实现
      */
     fun jenkinsBuildTask(task: Task, platform: String) {
-        val config = RemotePluginUtils.getJenkinsConfig(task, platform)
-        val url = config["url"]
-        val user = config["user"]
-        val token = config["token"]
-        val jobName = config["job"]
-
-        if (url == null || user == null || token == null || jobName == null) {
-            println("Jenkins配置不完整，跳过任务")
-            return
-        }
-
         task.doFirst {
+            // 确保环境配置已加载
+            RemotePluginUtils.envLoad(task, platform)
+            
+            val config = RemotePluginUtils.getJenkinsConfig(task, platform)
+            val url = config["url"]
+            val user = config["user"]
+            val token = config["token"]
+            val jobName = config["job"]
+
+            if (url == null || user == null || token == null || jobName == null) {
+                println("[jenkins] Jenkins配置不完整，跳过任务。缺失项: " +
+                    listOfNotNull(
+                        if (url == null) "jenkins.url" else null,
+                        if (user == null) "jenkins.user" else null,
+                        if (token == null) "jenkins.token" else null,
+                        if (jobName == null) "jenkins.job" else null
+                    ).joinToString(", ")
+                )
+                return@doFirst
+            }
+
             println("[jenkins] 触发构建: $jobName (环境: $platform)")
             println("[jenkins] Jenkins URL: $url")
 
