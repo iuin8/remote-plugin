@@ -6,6 +6,7 @@ plugins {
 }
 
 group = 'io.github.iuin8'
+// PS: 下个版本从1.2.0开始吧
 version = '1.1.0'
 
 def secretsFile = file("support-tools/secrets/gradle/${rootProject.name}/secrets.properties")
