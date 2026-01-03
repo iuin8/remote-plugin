@@ -24,13 +24,13 @@ object SshConfigManager {
     fun setupSshConfig(projectRootDir: File, projectName: String) {
         try {
             // 检查项目的 SSH 配置文件是否存在
-            val projectSshConfig = File(projectRootDir, "gradle/remote-plugin/.ssh/config")
+            val projectSshConfig = File(projectRootDir, "gradle/remote-plugin/.ssh/config.template")
             if (!projectSshConfig.exists()) {
                 println("[remote-plugin] 项目未配置 SSH 配置文件，跳过 SSH 配置注入")
                 return
             }
             
-            println("[remote-plugin] 找到 SSH 配置文件：gradle/remote-plugin/.ssh/config")
+            println("[remote-plugin] 找到 SSH 配置文件：gradle/remote-plugin/.ssh/config.template")
             
             // 第一步：确保系统配置包含插件 Include
             ensureSystemConfigIncludesPlugin()
@@ -51,40 +51,14 @@ object SshConfigManager {
         val sshDir = File(userHome, ".ssh")
         val systemConfig = File(sshDir, "config")
         
-        // 确保 .ssh 目录存在
-        if (!sshDir.exists()) {
-            sshDir.mkdirs()
-            sshDir.setReadable(false, false)
-            sshDir.setReadable(true, true)
-            sshDir.setWritable(false, false)
-            sshDir.setWritable(true, true)
-            sshDir.setExecutable(false, false)
-            sshDir.setExecutable(true, true)
-        }
+        ensureSshDirAndConfigExists(sshDir, systemConfig)
         
-        // 如果系统配置不存在，创建它
-        if (!systemConfig.exists()) {
-            systemConfig.createNewFile()
-            systemConfig.setReadable(false, false)
-            systemConfig.setReadable(true, true)
-            systemConfig.setWritable(false, false)
-            systemConfig.setWritable(true, true)
-        }
-        
-        // 读取现有配置
-        val existingContent = if (systemConfig.exists()) {
-            systemConfig.readText()
-        } else {
-            ""
-        }
-        
-        // 检查是否已包含插件 Include 指令
+        val existingContent = systemConfig.readText()
         if (existingContent.lines().any { it.trim() == PLUGIN_INCLUDE_LINE.trim() }) {
             println("[remote-plugin] 系统 SSH 配置已包含 Gradle Remote Plugin 引用")
             return
         }
         
-        // 在文件开头插入插件 Include 块
         val pluginBlock = buildString {
             appendLine(PLUGIN_COMMENT_START)
             appendLine(PLUGIN_COMMENT_WARN)
@@ -92,29 +66,54 @@ object SshConfigManager {
             appendLine()
         }
         
-        val newContent = pluginBlock + existingContent
-        
-        // 写入配置（通过临时文件确保原子性）
-        val tempFile = File(systemConfig.parentFile, "${systemConfig.name}.tmp")
+        writeConfigAtomically(systemConfig, pluginBlock + existingContent)
+        println("[remote-plugin] 已将 Gradle Remote Plugin 配置引用注入到 ~/.ssh/config")
+    }
+
+    private fun ensureSshDirAndConfigExists(sshDir: File, config: File) {
+        if (!sshDir.exists()) {
+            sshDir.mkdirs()
+            setUnixPermissions(sshDir, "700")
+        }
+        if (!config.exists()) {
+            config.createNewFile()
+            setUnixPermissions(config, "600")
+        }
+    }
+
+    private fun setUnixPermissions(file: File, perms: String) {
+        if (!System.getProperty("os.name").toLowerCase().contains("win")) {
+            try {
+                when (perms) {
+                    "700" -> {
+                        file.setReadable(false, false); file.setReadable(true, true)
+                        file.setWritable(false, false); file.setWritable(true, true)
+                        file.setExecutable(false, false); file.setExecutable(true, true)
+                    }
+                    "600" -> {
+                        file.setReadable(false, false); file.setReadable(true, true)
+                        file.setWritable(false, false); file.setWritable(true, true)
+                        file.setExecutable(false, false)
+                    }
+                }
+            } catch (e: Exception) { /* ignore */ }
+        }
+    }
+
+    private fun writeConfigAtomically(file: File, content: String) {
+        val tempFile = File(file.parentFile, "${file.name}.tmp")
         try {
-            tempFile.writeText(newContent)
-            tempFile.setReadable(false, false)
-            tempFile.setReadable(true, true)
-            tempFile.setWritable(false, false)
-            tempFile.setWritable(true, true)
-            
-            // 替换原文件
-            tempFile.renameTo(systemConfig)
-            println("[remote-plugin] 已将 Gradle Remote Plugin 配置引用注入到 ~/.ssh/config")
+            tempFile.writeText(content)
+            setUnixPermissions(tempFile, "600")
+            tempFile.renameTo(file)
         } finally {
-            if (tempFile.exists()) {
-                tempFile.delete()
-            }
+            if (tempFile.exists()) tempFile.delete()
         }
     }
     
     /**
      * 确保插件管理配置包含当前项目
+     * 采用“影子解析配置”策略：将项目配置中的占位符解析后存入本地，确保 Terminal 和 Gradle 都能无感使用
      */
     private fun ensureManagedConfigIncludesProject(
         projectRootDir: File,
@@ -123,70 +122,44 @@ object SshConfigManager {
     ) {
         val userHome = System.getProperty("user.home")
         val pluginConfigDir = File(userHome, ".ssh/gradle/remote-plugin")
+        val resolvedDir = File(pluginConfigDir, "projects")
         val managedConfig = File(pluginConfigDir, "config")
         
-        // 确保插件配置目录存在
-        if (!pluginConfigDir.exists()) {
-            pluginConfigDir.mkdirs()
-            pluginConfigDir.setReadable(false, false)
-            pluginConfigDir.setReadable(true, true)
-            pluginConfigDir.setWritable(false, false)
-            pluginConfigDir.setWritable(true, true)
-            pluginConfigDir.setExecutable(false, false)
-            pluginConfigDir.setExecutable(true, true)
-        }
+        if (!resolvedDir.exists()) resolvedDir.mkdirs()
         
-        val projectIncludeLine = "Include ${projectSshConfig.absolutePath}"
+        val pathHash = Integer.toHexString(projectRootDir.absolutePath.hashCode())
+        val resolvedProjectConfig = File(resolvedDir, "${projectName}-${pathHash}.config")
         
-        // 读取现有配置
-        val existingContent = if (managedConfig.exists()) {
-            managedConfig.readText()
-        } else {
-            ""
-        }
-        
-        // 检查是否已包含当前项目
-        if (existingContent.lines().any { it.trim() == projectIncludeLine.trim() }) {
-            println("[remote-plugin] 插件管理配置已包含当前项目，跳过注入")
+        try {
+            val originalContent = projectSshConfig.readText()
+            val resolvedContent = originalContent.replace("\${RP_PROJECT_ROOT_PATH}", projectRootDir.absolutePath)
+            
+            resolvedProjectConfig.writeText("# Auto-generated from: ${projectSshConfig.absolutePath}\n$resolvedContent")
+            setUnixPermissions(resolvedProjectConfig, "600")
+        } catch (e: Exception) {
+            println("[remote-plugin] [WARN] 无法生成解析后的 SSH 配置: ${e.message}")
             return
         }
         
-        // 构建新的配置块
+        val projectIncludeLine = "Include ${resolvedProjectConfig.absolutePath}"
+        val existingContent = if (managedConfig.exists()) managedConfig.readText() else ""
+        
+        if (existingContent.lines().any { it.trim() == projectIncludeLine.trim() }) return
+        
         val projectBlock = buildString {
-            // 如果文件为空，添加文件头
             if (existingContent.isEmpty()) {
                 appendLine(MANAGED_CONFIG_HEADER)
                 appendLine(MANAGED_CONFIG_NOTE)
                 appendLine()
             } else if (existingContent.isNotBlank()) {
-                // 如果已有内容，先添加空行
                 appendLine()
             }
-            
-            // 添加项目注释和 Include 指令
             appendLine("# Project: $projectName")
             appendLine("# Path: ${projectRootDir.absolutePath}")
             appendLine(projectIncludeLine)
         }
         
-        val newContent = existingContent + projectBlock
-        
-        // 写入配置（通过临时文件确保原子性）
-        val tempFile = File(managedConfig.parentFile, "${managedConfig.name}.tmp")
-        try {
-            tempFile.writeText(newContent)
-            tempFile.setReadable(false, false)
-            tempFile.setReadable(true, true)
-            tempFile.setWritable(false, false)
-            tempFile.setWritable(true, true)
-            
-            // 替换原文件
-            tempFile.renameTo(managedConfig)
-            println("[remote-plugin] 已将项目 SSH 配置添加到插件管理配置中")
-        } finally {
-            if (tempFile.exists()) {
-                tempFile.delete()
-            }
-        }
+        writeConfigAtomically(managedConfig, existingContent + projectBlock)
+        println("[remote-plugin] 已将项目 SSH 配置（解析版）添加到插件管理配置中")
     }
 }

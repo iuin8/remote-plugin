@@ -188,7 +188,7 @@ object SshSetupManager {
      * 生成 .ssh/config 配置文件
      */
     private fun generateSshConfig(sshDir: File) {
-        val configFile = File(sshDir, "config")
+        val configFile = File(sshDir, "config.template")
         
         if (configFile.exists()) {
             return
@@ -208,9 +208,9 @@ object SshSetupManager {
                 setFilePermissions(configFile, true, true, false)
             }
             
-            println("[remote-plugin] ✓ 已生成 .ssh/config 配置模板")
+            println("[remote-plugin] ✓ 已生成 .ssh/config.template 配置模板")
         } catch (e: Exception) {
-            println("[remote-plugin] [WARN] 无法生成 .ssh/config: ${e.message}")
+            println("[remote-plugin] [WARN] 无法生成 .ssh/config.template: ${e.message}")
         }
     }
     

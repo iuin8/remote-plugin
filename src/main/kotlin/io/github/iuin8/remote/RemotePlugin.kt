@@ -110,17 +110,7 @@ class RemotePlugin : Plugin<Project> {
                 // 读取服务端口并注入环境变量
                 val servicePort = RemotePluginUtils.getServicePort(task, scriptDir)
 
-                task.environment(
-                    mapOf(
-                        "TERM" to "xterm",
-                        "LOCAL_BASE_DIR" to task.project.rootDir.absolutePath,
-                        "REMOTE_SERVER" to extra.get("ssh.server").toString(),
-                        "REMOTE_BASE_DIR" to if (extra.has("remote.base_dir")) extra.get("remote.base_dir").toString() else "",
-                        "SERVICE_NAME" to task.project.name,
-                        "SERVICE_PORT" to servicePort,
-                        "SERVICE_DIR" to java.io.File(task.project.rootDir, task.project.name).absolutePath
-                    )
-                )
+                applyCommonEnvironment(task, servicePort)
 
                 val remoteServer = extra.get("ssh.server").toString()
                 val remoteBaseDir = if (extra.has("remote.base_dir")) extra.get("remote.base_dir").toString() else ""
@@ -134,14 +124,20 @@ class RemotePlugin : Plugin<Project> {
                 val scpTarget = "$remoteServer:$remoteBaseDir/$serviceName/"
                 val scpCmdStr = "scp ${jar.absolutePath} $scpTarget"
                 println("[cmd] $scpCmdStr")
-                task.project.exec { it.commandLine("scp", jar.absolutePath, "$remoteServer:$remoteBaseDir/$serviceName/") }
+                task.project.exec { 
+                    applyCommonEnvironment(it, task.project.rootDir)
+                    it.commandLine("scp", jar.absolutePath, "$remoteServer:$remoteBaseDir/$serviceName/") 
+                }
                 val sshUser = if (extra.has("ssh.user")) extra.get("ssh.user").toString() else ""
                 
                 val chownTarget = "$remoteBaseDir/$serviceName/$serviceName-*.jar"
                 if (sshUser.isNotBlank()) {
                     val chownCmdStr = "ssh $remoteServer bash -lc 'chown $sshUser:$sshUser $chownTarget'"
                     println("[cmd] $chownCmdStr")
-                    task.project.exec { it.commandLine("ssh", remoteServer, "bash -lc 'chown $sshUser:$sshUser $chownTarget'") }
+                    task.project.exec { 
+                        applyCommonEnvironment(it, task.project.rootDir)
+                        it.commandLine("ssh", remoteServer, "bash -lc 'chown $sshUser:$sshUser $chownTarget'") 
+                    }
                 }
 
                 val startCmd = io.github.iuin8.remote.RemotePluginUtils.resolveStartCommand(task, remoteBaseDir, serviceName, servicePort)
@@ -183,6 +179,7 @@ class RemotePlugin : Plugin<Project> {
                 val sshUser = if (extra.has("ssh.user")) extra.get("ssh.user").toString() else ""
                 val remoteCmd = RemotePluginUtils.wrapRemoteCommand(full, sshUser)
                 
+                applyCommonEnvironment(task)
                 println("[cmd] ssh -tt -o SendEnv=TERM -o RequestTTY=force $remoteServer $remoteCmd")
                 task.setCommandLine(listOf("ssh", "-tt", "-o", "SendEnv=TERM", "-o", "RequestTTY=force", remoteServer, remoteCmd))
                 task.standardInput = System.`in`
@@ -213,14 +210,7 @@ class RemotePlugin : Plugin<Project> {
                 if (!extra.has("ssh.server")) {
                     throw GradleException("环境变量 ssh.server 不存在")
                 }
-                task.environment(
-                    mapOf(
-                        "TERM" to "xterm",
-                        "LOCAL_BASE_DIR" to task.project.rootDir.absolutePath,
-                        "REMOTE_SERVER" to extra.get("ssh.server").toString(),
-                        "REMOTE_BASE_DIR" to if (extra.has("remote.base_dir")) extra.get("remote.base_dir").toString() else ""
-                    )
-                )
+                applyCommonEnvironment(task, servicePort)
 
                 val remoteServer = extra.get("ssh.server").toString()
                 println("正在通过SSH连接到 $remoteServer 并启动Arthas(${task.project.name}:$arthasPort)...")
@@ -264,6 +254,7 @@ class RemotePlugin : Plugin<Project> {
                 val sshUser = if (extra.has("ssh.user")) extra.get("ssh.user").toString() else ""
                 val remoteCmd = RemotePluginUtils.wrapRemoteCommand(startCmd, sshUser)
                 
+                applyCommonEnvironment(task)
                 println("[cmd] ssh -tt -o SendEnv=TERM -o RequestTTY=force $remoteServer $remoteCmd")
                 task.setCommandLine(listOf("ssh", "-tt", "-o", "SendEnv=TERM", "-o", "RequestTTY=force", remoteServer, remoteCmd))
                 task.standardInput = System.`in`
@@ -305,6 +296,7 @@ class RemotePlugin : Plugin<Project> {
                 println("[cmd] $cmdStr")
 
                 task.project.exec { execSpec ->
+                    applyCommonEnvironment(execSpec, task.project.rootDir)
                     execSpec.environment("TERM", "xterm")
                     execSpec.isIgnoreExitValue = true
                     execSpec.commandLine(
@@ -317,6 +309,30 @@ class RemotePlugin : Plugin<Project> {
                 }
                 println("日志流结束")
             }
+        }
+
+        /**
+         * 应用公共环境变量
+         */
+        private fun applyCommonEnvironment(task: Exec, servicePort: String? = null) {
+            val extra = task.extensions.extraProperties
+            val envMap = mutableMapOf(
+                "TERM" to "xterm",
+                "LOCAL_BASE_DIR" to task.project.rootDir.absolutePath,
+                "RP_PROJECT_ROOT_PATH" to task.project.rootDir.absolutePath,
+                "REMOTE_SERVER" to if (extra.has("ssh.server")) extra.get("ssh.server").toString() else "",
+                "REMOTE_BASE_DIR" to if (extra.has("remote.base_dir")) extra.get("remote.base_dir").toString() else "",
+                "SERVICE_NAME" to task.project.name,
+                "SERVICE_DIR" to File(task.project.rootDir, task.project.name).absolutePath
+            )
+            if (servicePort != null) {
+                envMap["SERVICE_PORT"] = servicePort
+            }
+            task.environment(envMap)
+        }
+
+        private fun applyCommonEnvironment(execSpec: org.gradle.process.ExecSpec, rootDir: File) {
+            execSpec.environment("RP_PROJECT_ROOT_PATH", rootDir.absolutePath)
         }
 
         /**
