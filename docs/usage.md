@@ -39,6 +39,24 @@ You can use the server alias directly in your terminal:
 ssh my-remote-server
 ```
 
-## 4. Portability
+## 4. Jenkins Tasks
+
+### Trigger Build
+```bash
+./gradlew dev_jenkins_build
+```
+
+### View Last Build Info
+Before publishing, you can check what was last built by Jenkins to avoid rolling back someone else's changes:
+```bash
+./gradlew dev_jenkins_last_build_info
+```
+This will show:
+- Branch name
+- Build result (SUCCESS/FAILURE)
+- Commits summary (Authors and Messages)
+- Build author and Jenkins URL
+
+## 5. Portability
 
 When another developer clones the project into a different path, they simply run `./gradlew tasks`, and the plugin will regenerate the local resolved config with their specific absolute path. There is no need for them to manually set any environment variables.

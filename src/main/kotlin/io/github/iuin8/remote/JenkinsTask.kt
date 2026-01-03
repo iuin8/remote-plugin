@@ -21,19 +21,11 @@ object JenkinsTask {
             val jobName = config["job"]
 
             if (url == null || user == null || token == null || jobName == null) {
-                println("[jenkins] Jenkins配置不完整，跳过任务。缺失项: " +
-                    listOfNotNull(
-                        if (url == null) "jenkins.url" else null,
-                        if (user == null) "jenkins.user" else null,
-                        if (token == null) "jenkins.token" else null,
-                        if (jobName == null) "jenkins.job" else null
-                    ).joinToString(", ")
-                )
+                println("[jenkins] Jenkins配置不完整，跳过任务。")
                 return@doFirst
             }
 
             println("[jenkins] 触发构建: $jobName (环境: $platform)")
-            println("[jenkins] Jenkins URL: $url")
 
             val jenkinsServer = try {
                 com.offbytwo.jenkins.JenkinsServer(URI(url), user, token)
@@ -63,8 +55,6 @@ object JenkinsTask {
                     while (maxWait > 0) {
                         val queueItem = jenkinsServer.getQueueItem(queueRef)
                         if (queueItem == null) {
-                            // 有时队列项消化太快可能查不到，尝试直接查Job的最后构建？
-                            // 这里简单重试
                             Thread.sleep(1000)
                             maxWait--
                             continue
@@ -91,14 +81,10 @@ object JenkinsTask {
                          // 获取构建信息
                          println("[jenkins] 获取构建信息...")
                          
-                         // 尝试等待提交记录就绪 (因为 SCM Checkout 可能需要时间)
-                         // 如果 changeSet 为空且重试次数内，则等待
                          var details = build.details()
                          var retryCount = 0
-                         val maxRetries = 6 // 最多等待 18秒
+                         val maxRetries = 6 
                          
-                         // 注意: 某些 Job 可能确实没有提交记录，所以我们只对自己判定"可能还没Checkou完成"的情况做有限等待
-                         // 但 API 无法通过 stage 判断，只能盲等一会
                          while ((details.changeSet == null || details.changeSet.items.isEmpty()) && retryCount < maxRetries) {
                              println("[jenkins] 提交记录为空，正在等待 SCM Checkout... (${retryCount + 1}/$maxRetries)")
                              Thread.sleep(3000)
@@ -113,12 +99,57 @@ object JenkinsTask {
 
                 } else {
                     println("[jenkins] 错误: 无法找到Job '$jobName'")
-                    println("提示: 请检查名称是否正确，支持 'Folder/SubFolder/JobName' 格式")
                 }
                 
             } catch (e: Exception) {
                 println("[jenkins] 执行异常: ${e.message}")
-                e.printStackTrace()
+            }
+        }
+    }
+
+    /**
+     * 查看 Jenkins 最后一次构建信息
+     */
+    fun jenkinsLastBuildInfoTask(task: Task, platform: String) {
+        task.doFirst {
+            // 确保环境配置已加载
+            RemotePluginUtils.envLoad(task, platform)
+            
+            val config = RemotePluginUtils.getJenkinsConfig(task, platform)
+            val url = config["url"]
+            val user = config["user"]
+            val token = config["token"]
+            val jobName = config["job"]
+
+            if (url == null || user == null || token == null || jobName == null) {
+                println("[jenkins] Jenkins配置不完整，跳过任务。")
+                return@doFirst
+            }
+
+            println("[jenkins] 正在获取最后一次构建信息: $jobName")
+
+            val jenkinsServer = try {
+                com.offbytwo.jenkins.JenkinsServer(URI(url), user, token)
+            } catch (e: Exception) {
+                println("[jenkins] 连接失败: ${e.message}")
+                throw e
+            }
+
+            try {
+                val targetJob = findJobRecursive(jenkinsServer, jobName)
+                if (targetJob != null) {
+                    val jobDetails = targetJob.details()
+                    val lastBuild = jobDetails.lastBuild
+                    if (lastBuild != null) {
+                        printBuildDetails(lastBuild.details())
+                    } else {
+                        println("[jenkins] 任务 '$jobName' 尚无构建记录")
+                    }
+                } else {
+                    println("[jenkins] 错误: 无法找到Job '$jobName'")
+                }
+            } catch (e: Exception) {
+                println("[jenkins] 获取信息异常: ${e.message}")
             }
         }
     }

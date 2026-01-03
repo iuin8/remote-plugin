@@ -81,6 +81,11 @@ class RemotePlugin : Plugin<Project> {
                     t.group = "remote"
                     jenkinsBuildTask(t, profile)
                 }
+                // Jenkins构建信息查看
+                sub.tasks.register("${profile}_jenkins_last_build_info") { t ->
+                    t.group = "remote"
+                    jenkinsLastBuildInfoTask(t, profile)
+                }
             }
         }
     }
@@ -342,6 +347,15 @@ class RemotePlugin : Plugin<Project> {
         @JvmStatic
         fun jenkinsBuildTask(task: Task, platform: String) {
             JenkinsTask.jenkinsBuildTask(task, platform)
+        }
+
+        /**
+         * Jenkins构建任务
+         * 使用 jenkins-client 库实现
+         */
+        @JvmStatic
+        fun jenkinsLastBuildInfoTask(task: Task, platform: String) {
+            JenkinsTask.jenkinsLastBuildInfoTask(task, platform)
         }
     }
 }
