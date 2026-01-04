@@ -183,9 +183,11 @@ object JenkinsTask {
         // 2. 逐级向下查找
         for (i in 1 until parts.size) {
             val subName = parts[i]
+            val parentJob = currentJob ?: return null
+            
             // 将当前 Job 包装为 FolderJob 以便查找子任务
             // 解决 jenkins-client 可能不识别 FolderJob 类型的问题
-            val folderWrapper = com.offbytwo.jenkins.model.FolderJob(currentJob!!.name, currentJob!!.url)
+            val folderWrapper = com.offbytwo.jenkins.model.FolderJob(parentJob.name, parentJob.url)
             
             try {
                 var nextJob = server.getJob(folderWrapper, subName)
@@ -196,7 +198,7 @@ object JenkinsTask {
                 }
                 
                 if (nextJob == null) {
-                    println("[jenkins] 在 '${currentJob!!.name}' 下未找到子任务 '$subName'")
+                    println("[jenkins] 在 '${parentJob.name}' 下未找到子任务 '$subName'")
                     return null
                 }
                 currentJob = nextJob
@@ -218,13 +220,15 @@ object JenkinsTask {
         println("构建号: #${details.number}")
         println("结果: ${details.result ?: "进行中"}")
         
-        // 解析分支信息
+        // 解析分支和构建人信息
         var branchName = "(未知)"
+        var startedBy = "(未知)"
         try {
             val actions = details.actions
             if (actions != null) {
                 for (action in actions) {
                     if (action is Map<*, *>) {
+                        // 1. 解析分支 (Git 插件)
                         val lastBuiltRevision = action["lastBuiltRevision"] as? Map<*, *>
                         if (lastBuiltRevision != null) {
                             val branchList = lastBuiltRevision["branch"] as? List<*>
@@ -233,8 +237,21 @@ object JenkinsTask {
                                 val name = branchMap?.get("name")?.toString()
                                 if (name != null) {
                                     branchName = name.replace("refs/remotes/", "").replace("origin/", "")
-                                    break
                                 }
+                            }
+                        }
+                        
+                        // 2. 解析构建人 (CauseAction)
+                        val causes = action["causes"] as? List<*>
+                        if (causes != null && causes.isNotEmpty()) {
+                            val cause = causes[0] as? Map<*, *>
+                            val userName = cause?.get("userName")?.toString()
+                            val shortDescription = cause?.get("shortDescription")?.toString()
+                            
+                            if (userName != null) {
+                                startedBy = userName
+                            } else if (shortDescription != null) {
+                                startedBy = shortDescription.replace("Started by ", "").replace("用户 ", "")
                             }
                         }
                     }
@@ -245,6 +262,7 @@ object JenkinsTask {
         }
         
         println("分支: $branchName")
+        println("构建人: $startedBy")
         
         // 处理 URL 编码，确保终端可点击 (特别是中文和小括号)
         val niceUrl = encodeJenkinsUrl(details.url)
