@@ -30,7 +30,7 @@ object SshSetupManager {
             println("[remote-plugin] 配置初始化完成，请根据实际情况修改 remote.yml")
             
             // 添加完成提示
-            if (isWindows()) {
+            if (RemotePluginUtils.isWindows()) {
                 println("[remote-plugin] 检测到 Windows 系统，跳过权限检查")
                 println("[remote-plugin] 配置文件检查完成")
             }
@@ -139,7 +139,7 @@ object SshSetupManager {
             
             if (keygenExitCode == 0) {
                 // 设置私钥文件权限为 600
-                if (!isWindows()) {
+                if (!RemotePluginUtils.isWindows()) {
                     setFilePermissions(privateKeyFile, true, true, false)
                 }
                 
@@ -147,7 +147,7 @@ object SshSetupManager {
                 println("[remote-plugin]   私钥: ${privateKeyFile.relativeTo(sshDir.parentFile.parentFile.parentFile).path}")
                 println("[remote-plugin]   公钥: ${File(privateKeyFile.absolutePath + ".pub").relativeTo(sshDir.parentFile.parentFile.parentFile).path}")
                 
-                if (!isWindows()) {
+                if (!RemotePluginUtils.isWindows()) {
                     println("[remote-plugin] ✓ 已设置私钥权限 (600)")
                 }
             } else {
@@ -197,14 +197,14 @@ object SshSetupManager {
         try {
             sshDir.mkdirs()
             // 设置 .ssh 目录权限为 700
-            if (!isWindows()) {
+            if (!RemotePluginUtils.isWindows()) {
                 setFilePermissions(sshDir, true, true, true)
             }
             
             configFile.writeText(loadTemplateFromResource("templates/remote-plugin/.ssh/config.template"))
             
             // 设置 config 文件权限为 600
-            if (!isWindows()) {
+            if (!RemotePluginUtils.isWindows()) {
                 setFilePermissions(configFile, true, true, false)
             }
             
@@ -225,7 +225,7 @@ object SshSetupManager {
         }
         
         // 修复 .ssh 目录权限
-        if (!isWindows()) {
+        if (!RemotePluginUtils.isWindows()) {
             if (setFilePermissions(sshDir, true, true, true)) {
                 // println("[remote-plugin] ✓ 已修复 .ssh 目录权限为 700")
             } else {
@@ -253,7 +253,7 @@ object SshSetupManager {
         
         privateKeyFiles.forEach { file ->
             // 检查当前权限
-            if (isWindows()) {
+            if (RemotePluginUtils.isWindows()) {
                 println("[remote-plugin] ✓ ${file.name} - Windows 系统跳过权限检查")
                 return@forEach
             }
@@ -347,9 +347,6 @@ object SshSetupManager {
     /**
      * 检测是否为 Windows 系统
      */
-    private fun isWindows(): Boolean {
-        return System.getProperty("os.name").toLowerCase().contains("win")
-    }
     
     /**
      * 设置文件权限（Unix/Linux/macOS）

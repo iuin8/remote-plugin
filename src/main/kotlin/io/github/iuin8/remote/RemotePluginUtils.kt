@@ -17,6 +17,42 @@ import java.time.format.DateTimeFormatter
  */
 object RemotePluginUtils {
     /**
+     * 判断是否为 Windows 系统
+     */
+    fun isWindows(): Boolean {
+        return System.getProperty("os.name").lowercase().contains("windows")
+    }
+
+    /**
+     * 判断是否为 Mac 系统
+     */
+    fun isMac(): Boolean {
+        return System.getProperty("os.name").lowercase().contains("mac")
+    }
+
+    /**
+     * 使用 script 命令包装以模拟 TTY (仅支持 Unix-like)
+     * 在 Gradle exec 中强制 scp/ssh 显示进度条时非常有用
+     */
+    fun wrapWithPty(args: List<String>): List<String> {
+        if (isWindows()) return args
+        
+        // macOS 和 Linux 的 script 命令用法略有不同
+        // macOS: script -q /dev/null command args...
+        // Linux: script -q -c "command args..." /dev/null
+        
+        return if (isMac()) {
+            listOf("script", "-q", "/dev/null") + args
+        } else {
+            // 兜底 Linux 或其他 Unix
+            val fullCmd = args.joinToString(" ") { 
+                if (it.contains(" ") || it.contains("\"") || it.contains("$")) "\"${it.replace("\"", "\\\"")}\"" else it 
+            }
+            listOf("script", "-q", "-c", fullCmd, "/dev/null")
+        }
+    }
+
+    /**
      * 替换配置值中的占位符
      */
     fun replacePlaceholders(value: String, serviceName: String, remoteBaseDir: String, servicePort: String): String {

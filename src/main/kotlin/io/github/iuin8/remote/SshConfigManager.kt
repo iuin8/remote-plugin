@@ -82,7 +82,7 @@ object SshConfigManager {
     }
 
     private fun setUnixPermissions(file: File, perms: String) {
-        if (!System.getProperty("os.name").toLowerCase().contains("win")) {
+        if (!RemotePluginUtils.isWindows()) {
             try {
                 when (perms) {
                     "700" -> {

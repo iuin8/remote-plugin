@@ -131,7 +131,9 @@ class RemotePlugin : Plugin<Project> {
                 println("[cmd] $scpCmdStr")
                 task.project.exec { 
                     applyCommonEnvironment(it, task.project.rootDir)
-                    it.commandLine("scp", jar.absolutePath, "$remoteServer:$remoteBaseDir/$serviceName/") 
+                    it.commandLine(RemotePluginUtils.wrapWithPty(listOf("scp", jar.absolutePath, "$remoteServer:$remoteBaseDir/$serviceName/"))) 
+                    it.standardOutput = System.out
+                    it.errorOutput = System.err
                 }
                 val sshUser = if (extra.has("ssh.user")) extra.get("ssh.user").toString() else ""
                 

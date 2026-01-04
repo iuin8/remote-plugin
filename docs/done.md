@@ -49,3 +49,7 @@ expect eof
 chmod +x restart-service.exp
 ./restart-service.exp
 ```
+
+### scp 显示进度和速度
+
+通过将 `scp` 命令的标准输出和错误输出连接到系统的 `System.out` 和 `System.err`，在使用支持 TTY 的终端运行 Gradle 任务时，可以实时看到上传进度和速度。
