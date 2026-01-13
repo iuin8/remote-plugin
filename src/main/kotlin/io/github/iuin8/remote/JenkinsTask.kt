@@ -83,9 +83,27 @@ object JenkinsTask {
                          
                          var details = build.details()
                          var retryCount = 0
-                         val maxRetries = 6 
+                         val maxRetries = 40 // 3秒一次，共2分钟
                          
-                         while ((details.changeSet == null || details.changeSet.items.isEmpty()) && retryCount < maxRetries) {
+                         while (retryCount < maxRetries) {
+                             // 1. 如果已经有提交记录，直接退出循环
+                             if (details.changeSet != null && details.changeSet.items.isNotEmpty()) {
+                                 break
+                             }
+                             
+                             // 2. 如果任务已经结束（成功、失败或取消），且还没有提交记录，直接退出
+                             if (!details.isBuilding) {
+                                 println("[jenkins] 构建已结束，共获取到 0 条提交记录")
+                                 break
+                             }
+                             
+                             // 3. 检查是否已经完成了 SCM Checkout (通过检查 Action 中是否包含 GitRevision)
+                             if (hasScmAction(details)) {
+                                 // 已检出但没记录，说明本次构建确实没有新的提交，无需再等
+                                 println("[jenkins] SCM 检出已完成，本次无新增提交记录")
+                                 break
+                             }
+                             
                              println("[jenkins] 提交记录为空，正在等待 SCM Checkout... (${retryCount + 1}/$maxRetries)")
                              Thread.sleep(3000)
                              details = build.details()
@@ -304,14 +322,41 @@ object JenkinsTask {
         
         println("--------------------------------------------------")
         println("提交记录:")
-        if (details.changeSet != null && details.changeSet.items != null) {
-            details.changeSet.items.forEach { item ->
+        val items = details.changeSet?.items
+        if (items != null && items.isNotEmpty()) {
+            items.forEach { item ->
                 println("  - [${item.author.fullName}] ${item.msg}")
             }
         } else {
-            println("  (无提交记录)")
+            if (details.isBuilding) {
+                if (hasScmAction(details)) {
+                    println("  (SCM 检出已完成，本次无新增提交记录)")
+                } else {
+                    println("  (正在从 SCM 拉取记录，可稍后执行 _jenkins_last_build_info 或前往页面查看)")
+                }
+            } else {
+                // 如果是已经结束的构建，且没有提交记录
+                println("  (本次构建无代码变动，或未检测到新增提交)")
+            }
         }
         println("==================================================")
+    }
+
+    private fun hasScmAction(details: com.offbytwo.jenkins.model.BuildWithDetails): Boolean {
+        val actions = details.actions ?: return false
+        for (action in actions) {
+            if (action is Map<*, *>) {
+                // Git 插件通常包含 lastBuiltRevision 或 remoteUrls
+                if (action.containsKey("lastBuiltRevision") || action.containsKey("remoteUrls")) {
+                    return true
+                }
+                // SVN 或其他插件
+                if (action.containsKey("revision") || action.containsKey("buildsByBranchName")) {
+                    return true
+                }
+            }
+        }
+        return false
     }
 
     private fun encodeJenkinsUrl(rawUrl: String): String {
