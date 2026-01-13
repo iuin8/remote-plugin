@@ -26,6 +26,7 @@ object ConfigMerger {
         
         var currentSection: String? = null // "common" or "environments"
         var currentBlock: String? = null   // e.g., "base" or "dev"
+        var blockIndent: Int = -1          // Indentation of the current top-level block
         
         // 用于跟踪每行的缩进和对应的键路径
         val pathStack = mutableListOf<Pair<Int, String>>()
@@ -39,12 +40,14 @@ object ConfigMerger {
             if (line == "common:") {
                 currentSection = "common"
                 currentBlock = null
+                blockIndent = -1
                 pathStack.clear()
                 return@forEachLine
             }
             if (line == "environments:") {
                 currentSection = "environments"
                 currentBlock = null
+                blockIndent = -1
                 pathStack.clear()
                 return@forEachLine
             }
@@ -56,8 +59,9 @@ object ConfigMerger {
             
             if (line.endsWith(":")) {
                 val key = line.substringBeforeLast(":").trim()
-                if (currentSection != null && currentBlock == null && pathStack.isEmpty()) {
+                if (currentSection != null && (currentBlock == null || indent <= blockIndent) && pathStack.isEmpty()) {
                     currentBlock = key
+                    blockIndent = indent
                 } else {
                     pathStack.add(indent to key)
                 }

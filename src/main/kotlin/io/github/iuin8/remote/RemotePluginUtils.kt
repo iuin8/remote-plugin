@@ -20,14 +20,14 @@ object RemotePluginUtils {
      * 判断是否为 Windows 系统
      */
     fun isWindows(): Boolean {
-        return System.getProperty("os.name").lowercase().contains("windows")
+        return System.getProperty("os.name").toLowerCase().contains("windows")
     }
 
     /**
      * 判断是否为 Mac 系统
      */
     fun isMac(): Boolean {
-        return System.getProperty("os.name").lowercase().contains("mac")
+        return System.getProperty("os.name").toLowerCase().contains("mac")
     }
 
     /**

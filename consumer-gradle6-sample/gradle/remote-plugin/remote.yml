@@ -31,9 +31,25 @@ environments:
   dev:
     extends: base
     ssh:
-      server: your-server-hostname
+      server: dev-server
     jenkins:
-      job: "your-job-name"
+      job: "dev-job"
+
+  # Test environment configuration
+  test:
+    extends: base
+    ssh:
+      server: test-server
+    jenkins:
+      job: "test-job"
+
+  # UAT environment configuration
+  UAT:
+    extends: base
+    ssh:
+      server: uat-server
+    jenkins:
+      job: "uat-job"
 
 # Supported placeholders:
 #   - ${service}            : current Gradle project name
