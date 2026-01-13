@@ -264,6 +264,40 @@ object JenkinsTask {
         println("分支: $branchName")
         println("构建人: $startedBy")
         
+        // 解析时间信息
+        try {
+            val timestamp = details.timestamp
+            val duration = details.duration
+            
+            if (timestamp > 0) {
+                val startTime = java.time.Instant.ofEpochMilli(timestamp)
+                    .atZone(java.time.ZoneId.systemDefault())
+                    .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
+                
+                val now = java.time.Instant.now()
+                val diffSeconds = java.time.Duration.between(java.time.Instant.ofEpochMilli(timestamp), now).seconds
+                val relativeTime = when {
+                    diffSeconds < 60 -> "刚刚"
+                    diffSeconds < 3600 -> "${diffSeconds / 60} 分钟前"
+                    diffSeconds < 86400 -> "${diffSeconds / 3600} 小时前"
+                    else -> "${diffSeconds / 86400} 天前"
+                }
+
+                println("开始时间: $startTime ($relativeTime)")
+            }
+            
+            if (duration > 0) {
+                val minutes = duration / 1000 / 60
+                val seconds = (duration / 1000) % 60
+                val durationStr = if (minutes > 0) "${minutes}分${seconds}秒" else "${seconds}秒"
+                println("构建时长: $durationStr")
+            } else if (details.isBuilding) {
+                println("构建时长: 进行中...")
+            }
+        } catch (e: Exception) {
+            // 时间解析失败忽略
+        }
+        
         // 处理 URL 编码，确保终端可点击 (特别是中文和小括号)
         val niceUrl = encodeJenkinsUrl(details.url)
         println("URL: $niceUrl")
