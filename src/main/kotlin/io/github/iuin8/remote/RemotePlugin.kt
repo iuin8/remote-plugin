@@ -46,21 +46,38 @@ class RemotePlugin : Plugin<Project> {
             environments.forEach { profile ->
                 // val profileCap = profile.substring(0, 1).toUpperCase() + profile.substring(1) // 不再使用
 
+                // 预检查任务 (用于确认)
+                val preCheckTask = sub.tasks.register("${profile}_pre_check") { t ->
+                    t.group = "remote"
+                    t.doFirst {
+                        RemotePluginUtils.envLoad(t, profile)
+                        RemotePluginUtils.checkConfirmation(t, profile)
+                    }
+                }
+
+                // 强制 bootJar 在预检查之后运行 (如果存在)
+                sub.tasks.matching { it.name == "bootJar" }.all { bootJar ->
+                    bootJar.mustRunAfter(preCheckTask)
+                }
+
                 // 发布任务
                 sub.tasks.register("${profile}_publish", Exec::class.java) { t ->
                     t.group = "remote"
+                    t.dependsOn(preCheckTask)
                     publishTask(t, profile, scriptDir)
                 }
 
                 // Debug任务
                 sub.tasks.register("${profile}_debug", Exec::class.java) { t ->
                     t.group = "remote"
+                    t.dependsOn(preCheckTask)
                     debugTask(t, profile, scriptDir)
                 }
 
                 // Arthas任务
                 sub.tasks.register("${profile}_arthas", Exec::class.java) { t ->
                     t.group = "remote"
+                    // Arthas 任务目前用户决定不需要强制确认，保持现状
                     arthasTask(t, profile, scriptDir)
                 }
 
@@ -73,12 +90,14 @@ class RemotePlugin : Plugin<Project> {
                 // 重启任务
                 sub.tasks.register("${profile}_restart", Exec::class.java) { t ->
                     t.group = "remote"
+                    t.dependsOn(preCheckTask)
                     restartTask(t, profile)
                 }
 
                 // Jenkins构建任务
                 sub.tasks.register("${profile}_jenkins_build") { t ->
                     t.group = "remote"
+                    t.dependsOn(preCheckTask)
                     jenkinsBuildTask(t, profile)
                 }
                 // Jenkins构建信息查看
@@ -97,8 +116,6 @@ class RemotePlugin : Plugin<Project> {
             RemotePluginUtils.configureTaskToDependOnBootJar(task)
 
             task.workingDir = File(scriptDir)
-            task.isIgnoreExitValue = true
-
             task.doFirst {
                 RemotePluginUtils.envLoad(task, profile)
 

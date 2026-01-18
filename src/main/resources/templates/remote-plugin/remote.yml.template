@@ -12,6 +12,16 @@ environments:
     jenkins:
       job: "your-job-name"
 
+  prod:
+    extends: base
+    ssh:
+      server: prod-server-hostname
+    jenkins:
+      job: "prod-job-name"
+    start:
+      # 是否需要用户确认(用于生产等环境, 防止误操作执行了发布等任务)
+      need_confirm: true
+
 # Test environment configuration
 #  test:
 #    extends: other

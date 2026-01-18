@@ -11,6 +11,7 @@ import org.gradle.api.plugins.ExtraPropertiesExtension
 import java.io.File
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import java.util.Scanner
 
 /**
  * RemotePlugin 工具类，包含非任务相关的辅助方法
@@ -81,7 +82,7 @@ object RemotePluginUtils {
     
     // parseSimpleYaml 已移除，请使用 ConfigMerger.parseSimpleYamlWithBase
 
-    fun getJenkinsConfig(task: Task, profile: String): Map<String, String?> {
+    fun getJenkinsConfig(task: Task, @Suppress("UNUSED_PARAMETER") profile: String): Map<String, String?> {
         val extra = task.extensions.extraProperties
         val serviceName = task.project.name
         
@@ -236,15 +237,14 @@ object RemotePluginUtils {
      * 2. 对于Exec类型任务，添加对bootJar任务的依赖关系
      */
     fun configureTaskToDependOnBootJar(task: Task) {
+        // 使用字符串名称依赖，即使 bootJar 任务是延迟注册的也能正确建立依赖关系
+        // 这样可以避免在任务配置闭包中执行 Matching/All 导致的 Context 错误
+        task.dependsOn("bootJar")
+        // 只有存在 bootJar 任务时才执行
         task.onlyIf { task.project.tasks.findByName("bootJar") != null }
-        if (task is Exec) {
-            if (task.project.tasks.findByName("bootJar") != null) {
-                task.dependsOn("bootJar")
-            }
-        }
     }
 
-    fun getServicePort(task: Task, scriptDir: String): String {
+    fun getServicePort(task: Task, @Suppress("UNUSED_PARAMETER") scriptDir: String = ""): String {
         val extra = task.extensions.extraProperties
         val serviceName = task.project.name
         val port = if (extra.has("service_ports.$serviceName")) extra.get("service_ports.$serviceName").toString() else null
@@ -256,9 +256,70 @@ object RemotePluginUtils {
 service_ports:
     $serviceName: 8080
 """
-                .trimIndent()
             throw GradleException(msg)
         }
         return port
+    }
+
+    /**
+     * 检查用户确认，用于生产环境任务安全防护
+     */
+    fun checkConfirmation(task: Task, profile: String) {
+        val extra = task.extensions.extraProperties
+        
+        // 1. 检查命令行属性绕过 -Pstart.need_confirm=false
+        if (task.project.hasProperty("start.need_confirm")) {
+            val prop = task.project.property("start.need_confirm").toString()
+            if (prop == "false") return
+        }
+        
+        // 2. 获取配置项 need_confirm (从 remote.yml 加载)
+        var needConfirm: Boolean? = if (extra.has("start.need_confirm")) {
+            extra.get("start.need_confirm").toString().toBoolean()
+        } else {
+            null
+        }
+        
+        // 3. 智能默认值：如果未显式配置，且环境名包含 prod，则默认为 true
+        if (needConfirm == null) {
+            needConfirm = profile.toLowerCase().contains("prod")
+        }
+        
+        if (!needConfirm) return
+
+        // 4. 执行确认逻辑
+        println("\n" + "=".repeat(60))
+        println("⚠️  警告: 检测到当前环境为 '$profile'")
+        println("   根据配置或环境识别，此任务需要用户确认。")
+        println("=".repeat(60))
+        
+        var input: String? = null
+        val console = System.console()
+        if (console != null) {
+            input = console.readLine("🔔 确定要继续执行吗？ [y/N]: ")
+        } else {
+            // 尝试使用 Scanner (兼容 IDE 运行窗口)
+            print("🔔 确定要继续执行吗？ [y/N]: ")
+            System.out.flush()
+            try {
+                val scanner = Scanner(System.`in`)
+                if (scanner.hasNextLine()) {
+                    input = scanner.nextLine()
+                }
+            } catch (e: Exception) {
+                // 读取失败通常意味着非交互式环境
+            }
+        }
+        
+        if (input == null || !input.trim().equals("y", ignoreCase = true)) {
+            if (console == null && input == null) {
+                throw GradleException(
+                    "检测到敏感操作确认，但当前为非交互式环境 (无 Console 且 Stdin 不可读)。\n" +
+                    "如果是自动化脚本，请加上 -Pstart.need_confirm=false 以跳过确认。"
+                )
+            }
+            throw GradleException("❌ 任务已由用户取消。")
+        }
+        println("✅ 确认成功，继续执行任务...\n")
     }
 }

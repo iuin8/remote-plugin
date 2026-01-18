@@ -51,6 +51,17 @@ environments:
     jenkins:
       job: "uat-job"
 
+  # prod environment configuration
+  prod:
+    extends: base
+    ssh:
+      server: prod-server
+    jenkins:
+      job: "prod-job"
+    start:
+      # 是否需要用户确认(用于生产等环境, 防止误操作执行了发布等任务)
+      need_confirm: true
+
 # Supported placeholders:
 #   - ${service}            : current Gradle project name
 #   - ${REMOTE_BASE_DIR}    : value of remote.base_dir
