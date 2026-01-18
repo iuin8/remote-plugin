@@ -11,8 +11,7 @@ object JenkinsTask {
      */
     fun jenkinsBuildTask(task: Task, platform: String) {
         task.doFirst {
-            // 确保环境配置已加载
-            RemotePluginUtils.envLoad(task, platform)
+            // 确保环境配置已加载 (已由 whenReady 处理)
             
             val config = RemotePluginUtils.getJenkinsConfig(task, platform)
             val url = config["url"]
@@ -130,8 +129,7 @@ object JenkinsTask {
      */
     fun jenkinsLastBuildInfoTask(task: Task, platform: String) {
         task.doFirst {
-            // 确保环境配置已加载
-            RemotePluginUtils.envLoad(task, platform)
+            // 确保环境配置已加载 (已由 whenReady 处理)
             
             val config = RemotePluginUtils.getJenkinsConfig(task, platform)
             val url = config["url"]

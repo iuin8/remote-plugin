@@ -19,12 +19,12 @@ class RemotePlugin : Plugin<Project> {
         // 默认脚本目录：优先使用项目根目录下的 gradle/remote-plugin
         val scriptDirFile = File(project.rootDir, "gradle/remote-plugin")
         val scriptDir = scriptDirFile.absolutePath
+        val remoteYmlFile = File(scriptDirFile, "remote.yml")
 
         // 扫描环境配置
         val environments = mutableSetOf<String>()
         
         // 1. 从remote.yml的environments部分获取环境配置
-        val remoteYmlFile = File(project.rootDir, "gradle/remote-plugin/remote.yml")
         if (remoteYmlFile.exists()) {
             try {
                 val parsedConfig = ConfigMerger.parseSimpleYamlWithBase(remoteYmlFile)
@@ -41,17 +41,56 @@ class RemotePlugin : Plugin<Project> {
         // 设置 SSH 配置自动注入
         SshConfigManager.setupSshConfig(project.rootDir, project.name)
 
+        // 核心优化：确保确认逻辑在任务执行图准备好后、任何任务执行前运行
+        // 这比 Task 依赖更可靠，因为它能阻塞整个执行过程，包括 bootJar 的依赖（如 compileJava）
+        val rootExtra = project.rootProject.extensions.extraProperties
+        if (!rootExtra.has("remote_confirmation_listener_added")) {
+            project.gradle.taskGraph.whenReady { graph ->
+                if (project.gradle.startParameter.isDryRun) return@whenReady
+                
+                // 找到所有远程插件的任务
+                val remoteTasks = graph.allTasks.filter { 
+                    it.extensions.extraProperties.has("remote_profile")
+                }
+                
+                if (remoteTasks.isNotEmpty()) {
+                    val confirmedProfiles = mutableSetOf<String>()
+                    val loadedProfiles = mutableSetOf<String>()
+
+                    remoteTasks.forEach { t ->
+                        val profile = t.extensions.extraProperties.get("remote_profile").toString()
+                        
+                        // 1. 确保环境配置已加载 (Project 级别)
+                        if (!loadedProfiles.contains("${t.project.path}:$profile")) {
+                            RemotePluginUtils.envLoad(t.project, profile)
+                            loadedProfiles.add("${t.project.path}:$profile")
+                        }
+
+                        // 2. 如果是敏感任务且未确认，执行确认
+                        if (t.extensions.extraProperties.has("remote_sensitive") &&
+                            t.extensions.extraProperties.get("remote_sensitive") == true
+                        ) {
+                            if (!confirmedProfiles.contains(profile)) {
+                                RemotePluginUtils.checkConfirmation(t, profile)
+                                confirmedProfiles.add(profile)
+                            }
+                        }
+                    }
+                }
+            }
+            // 标记已添加监听器，避免在多项目构建中针对每个子项目重复添加
+            rootExtra.set("remote_confirmation_listener_added", true)
+        }
+
         // 在所有子模块注册任务
         project.subprojects.forEach { sub ->
             val remoteTaskProviders = mutableListOf<org.gradle.api.tasks.TaskProvider<out Task>>()
             
             environments.forEach { profile ->
-                // 预检查任务 (用于确认)
+                // 预检查任务 (作为占位符，逻辑已移至 whenReady)
                 val preCheckTask = sub.tasks.register("${profile}_pre_check") { t ->
-                    t.doFirst {
-                        RemotePluginUtils.envLoad(t, profile)
-                        RemotePluginUtils.checkConfirmation(t, profile)
-                    }
+                    t.extensions.extraProperties.set("remote_sensitive", true)
+                    t.extensions.extraProperties.set("remote_profile", profile)
                 }
                 remoteTaskProviders.add(preCheckTask)
 
@@ -62,6 +101,8 @@ class RemotePlugin : Plugin<Project> {
 
                 // 发布任务
                 val publishTask = sub.tasks.register("${profile}_publish", Exec::class.java) { t ->
+                    t.extensions.extraProperties.set("remote_sensitive", true)
+                    t.extensions.extraProperties.set("remote_profile", profile)
                     t.dependsOn(preCheckTask)
                     publishTask(t, profile, scriptDir)
                 }
@@ -69,6 +110,8 @@ class RemotePlugin : Plugin<Project> {
 
                 // Debug任务
                 val debugTask = sub.tasks.register("${profile}_debug", Exec::class.java) { t ->
+                    t.extensions.extraProperties.set("remote_sensitive", true)
+                    t.extensions.extraProperties.set("remote_profile", profile)
                     t.dependsOn(preCheckTask)
                     debugTask(t, profile, scriptDir)
                 }
@@ -76,6 +119,7 @@ class RemotePlugin : Plugin<Project> {
 
                 // Arthas任务
                 val arthasTask = sub.tasks.register("${profile}_arthas", Exec::class.java) { t ->
+                    t.extensions.extraProperties.set("remote_profile", profile)
                     // Arthas 任务目前用户决定不需要强制确认，保持现状
                     arthasTask(t, profile, scriptDir)
                 }
@@ -83,12 +127,15 @@ class RemotePlugin : Plugin<Project> {
 
                 // 日志任务
                 val logTask = sub.tasks.register("${profile}_log") { t ->
+                    t.extensions.extraProperties.set("remote_profile", profile)
                     logTask(t, profile)
                 }
                 remoteTaskProviders.add(logTask)
 
                 // 重启任务
                 val restartTask = sub.tasks.register("${profile}_restart", Exec::class.java) { t ->
+                    t.extensions.extraProperties.set("remote_sensitive", true)
+                    t.extensions.extraProperties.set("remote_profile", profile)
                     t.dependsOn(preCheckTask)
                     restartTask(t, profile)
                 }
@@ -96,6 +143,8 @@ class RemotePlugin : Plugin<Project> {
 
                 // Jenkins构建任务
                 val jenkinsBuildTask = sub.tasks.register("${profile}_jenkins_build") { t ->
+                    t.extensions.extraProperties.set("remote_sensitive", true)
+                    t.extensions.extraProperties.set("remote_profile", profile)
                     t.dependsOn(preCheckTask)
                     jenkinsBuildTask(t, profile)
                 }
@@ -103,6 +152,7 @@ class RemotePlugin : Plugin<Project> {
 
                 // Jenkins构建信息查看
                 val jenkinsInfoTask = sub.tasks.register("${profile}_jenkins_last_build_info") { t ->
+                    t.extensions.extraProperties.set("remote_profile", profile)
                     jenkinsLastBuildInfoTask(t, profile)
                 }
                 remoteTaskProviders.add(jenkinsInfoTask)
@@ -125,9 +175,7 @@ class RemotePlugin : Plugin<Project> {
 
             task.workingDir = File(scriptDir)
             task.doFirst {
-                RemotePluginUtils.envLoad(task, profile)
-
-                val extra = task.extensions.extraProperties
+                val extra = task.project.extensions.extraProperties
                 println("[publish] 项目: ${task.project.name} 环境: $profile 服务器: ${if (extra.has("ssh.server")) extra.get("ssh.server") else "未设置"} 基础目录: ${if (extra.has("remote.base_dir")) extra.get("remote.base_dir") else "未设置"}")
                 if (!extra.has("ssh.server")) {
                     val allProperties = mutableMapOf<String, Any?>()
@@ -187,12 +235,11 @@ class RemotePlugin : Plugin<Project> {
         }
 
         @JvmStatic
-        fun debugTask(task: Exec, profile: String, scriptDir: String) {
+        fun debugTask(task: Exec, @Suppress("UNUSED_PARAMETER") profile: String, scriptDir: String) {
             task.onlyIf { task.project.tasks.findByName("bootJar") != null }
             task.isIgnoreExitValue = true
             task.doFirst {
-                RemotePluginUtils.envLoad(task, profile)
-                val extra = task.extensions.extraProperties
+                val extra = task.project.extensions.extraProperties
                 if (!extra.has("ssh.server")) {
                     val allProperties = mutableMapOf<String, Any?>()
                     extra.properties.forEach { (key, value) -> allProperties[key] = value }
@@ -231,13 +278,11 @@ class RemotePlugin : Plugin<Project> {
             task.onlyIf { task.project.tasks.findByName("bootJar") != null }
 
             task.doFirst {
-                RemotePluginUtils.envLoad(task, profile)
-
                 // 获取服务端口并转换为Arthas端口（1开头）
                 val servicePort = RemotePluginUtils.getServicePort(task, scriptDir)
                 val arthasPort = "1$servicePort"
 
-                val extra = task.extensions.extraProperties
+                val extra = task.project.extensions.extraProperties
                 println("[arthas] 项目: ${task.project.name} 环境: $profile 服务器: ${if (extra.has("ssh.server")) extra.get("ssh.server") else "未设置"} 基础目录: ${if (extra.has("remote.base_dir")) extra.get("remote.base_dir") else "未设置"}")
                 if (!extra.has("ssh.server")) {
                     throw GradleException("环境变量 ssh.server 不存在")
@@ -265,11 +310,10 @@ class RemotePlugin : Plugin<Project> {
         }
 
         @JvmStatic
-        fun restartTask(task: Exec, profile: String) {
+        fun restartTask(task: Exec, @Suppress("UNUSED_PARAMETER") profile: String) {
             task.onlyIf { task.project.tasks.findByName("bootJar") != null }
             task.doFirst {
-                RemotePluginUtils.envLoad(task, profile)
-                val extra = task.extensions.extraProperties
+                val extra = task.project.extensions.extraProperties
                 println("[restart] 项目: ${task.project.name} 环境: $profile 服务器: ${if (extra.has("ssh.server")) extra.get("ssh.server") else "未设置"} 基础目录: ${if (extra.has("remote.base_dir")) extra.get("remote.base_dir") else "未设置"}")
                 if (!extra.has("ssh.server")) {
                     val all = mutableMapOf<String, Any?>()
@@ -301,9 +345,7 @@ class RemotePlugin : Plugin<Project> {
             task.onlyIf { task.project.tasks.findByName("bootJar") != null }
 
             task.doFirst {
-                RemotePluginUtils.envLoad(task, profile)
-
-                val extra = task.extensions.extraProperties
+                val extra = task.project.extensions.extraProperties
                 println("[log] 项目: ${task.project.name} 环境: $profile 服务器: ${if (extra.has("ssh.server")) extra.get("ssh.server") else "未设置"} 基础目录: ${if (extra.has("remote.base_dir")) extra.get("remote.base_dir") else "未设置"}")
                 if (!extra.has("ssh.server")) {
                     val allProperties = mutableMapOf<String, Any?>()
@@ -316,7 +358,7 @@ class RemotePlugin : Plugin<Project> {
 
             task.doLast {
                 val serviceName = task.project.name
-                val extra = task.extensions.extraProperties
+                val extra = task.project.extensions.extraProperties
                 val remoteServer = extra.get("ssh.server").toString()
                 val remoteBaseDir = if (extra.has("remote.base_dir")) extra.get("remote.base_dir").toString() else ""
                 val servicePort = RemotePluginUtils.getServicePort(task, "") // scriptDir is unused
@@ -347,7 +389,7 @@ class RemotePlugin : Plugin<Project> {
          * 应用公共环境变量
          */
         private fun applyCommonEnvironment(task: Exec, servicePort: String? = null) {
-            val extra = task.extensions.extraProperties
+            val extra = task.project.extensions.extraProperties
             val envMap = mutableMapOf(
                 "TERM" to "xterm",
                 "LOCAL_BASE_DIR" to task.project.rootDir.absolutePath,

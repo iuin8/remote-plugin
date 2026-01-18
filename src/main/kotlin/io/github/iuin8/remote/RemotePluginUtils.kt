@@ -1,6 +1,7 @@
 package io.github.iuin8.remote
 
 import org.gradle.api.GradleException
+import org.gradle.api.Project
 import org.gradle.api.Task
 import org.gradle.api.provider.Property
 import org.gradle.api.tasks.Exec
@@ -83,7 +84,7 @@ object RemotePluginUtils {
     // parseSimpleYaml 已移除，请使用 ConfigMerger.parseSimpleYamlWithBase
 
     fun getJenkinsConfig(task: Task, @Suppress("UNUSED_PARAMETER") profile: String): Map<String, String?> {
-        val extra = task.extensions.extraProperties
+        val extra = task.project.extensions.extraProperties
         val serviceName = task.project.name
         
         val url = if (extra.has("jenkins.url")) extra.get("jenkins.url").toString() else null
@@ -107,7 +108,7 @@ object RemotePluginUtils {
     }
     
     fun resolveLogFilePath(task: Task, serviceName: String, remoteBaseDir: String, servicePort: String): String {
-        val extra = task.extensions.extraProperties
+        val extra = task.project.extensions.extraProperties
         val pattern = if (extra.has("log.filePattern")) extra.get("log.filePattern").toString() else null
         if (pattern != null) {
             return replacePlaceholders(pattern, serviceName, remoteBaseDir, servicePort)
@@ -116,13 +117,13 @@ object RemotePluginUtils {
     }
     
     fun resolveStartCommand(task: Task, remoteBaseDir: String, serviceName: String, servicePort: String): String {
-        val extra = task.extensions.extraProperties
+        val extra = task.project.extensions.extraProperties
         var cmd = if (extra.has("start.command")) extra.get("start.command").toString() else "$remoteBaseDir/$serviceName/$serviceName-start.sh"
         return replacePlaceholders(cmd, serviceName, remoteBaseDir, servicePort)
     }
 
     fun resolveStartEnv(task: Task, remoteBaseDir: String, serviceName: String, servicePort: String): Map<String, String> {
-        val extra = task.extensions.extraProperties
+        val extra = task.project.extensions.extraProperties
         val result = mutableMapOf<String, String>()
         extra.properties.forEach { (k, v) ->
             if (k.startsWith("env.")) {
@@ -176,59 +177,62 @@ object RemotePluginUtils {
     /**
      * 加载环境配置
      * 支持配置继承机制
+     * 将配置加载到项目的 extra properties 中，避免任务级别重复加载
      */
-    fun envLoad(task: Task, profile: String): Boolean {
+    @JvmStatic
+    fun envLoad(project: Project, profile: String): Boolean {
+        val extra = project.extensions.extraProperties
+        
+        // 如果已经加载过当前环境，则跳过
+        if (extra.has("remote_loaded_profile") && extra.get("remote_loaded_profile") == profile) {
+            return true
+        }
+
         // 尝试从remote.yml读取环境配置
-        val scriptDirFile = File(task.project.rootDir, "gradle/remote-plugin")
+        val scriptDirFile = File(project.rootDir, "gradle/remote-plugin")
         val remoteYmlFile = File(scriptDirFile, "remote.yml")
-        val extra: ExtraPropertiesExtension = task.extensions.extraProperties
         
         if (remoteYmlFile.exists()) {
             try {
                 // 使用新的配置合并机制
                 val mergedConfig = ConfigMerger.getMergedConfigForEnvironment(remoteYmlFile, profile)
                 
-                // 应用配置到任务属性
+                // 应用配置到项目属性
                 val loadedProperties = mutableMapOf<String, String>()
                 mergedConfig.entries.forEach { (key, value) ->
                     extra.set(key, value)
                     loadedProperties[key] = value
                 }
                 
+                // 标记已加载环境
+                extra.set("remote_loaded_profile", profile)
+                
                 if (loadedProperties.isNotEmpty()) {
                     println("[remote-plugin] 成功从remote.yml加载 ${loadedProperties.size} 个环境 $profile 的配置项")
-                    return true
-                } else {
-                    println("[DEBUG-envLoad] No config found for environment $profile in remote.yml")
                 }
-            } catch (e: ConfigMerger.ConfigException) {
-                println("[DEBUG-envLoad] 配置错误: ${e.message}")
-                e.printStackTrace()
             } catch (e: Exception) {
-                println("[DEBUG-envLoad] Error parsing remote.yml: ${e.message}")
-                e.printStackTrace()
+                println("[remote-plugin] 加载环境 $profile 时出错: ${e.message}")
             }
-            
-            // SshSetupManager 相关的逻辑，用于在初始化阶段获取 autoKeygen 配置
+
+            // SshSetupManager 相关的逻辑
             try {
-                // SshSetupManager 属于初始化阶段，此时还没有 profile，直接解析
                 val parsedConfig = ConfigMerger.parseSimpleYamlWithBase(remoteYmlFile)
-                // 查找所有 environments 中的 ssh.setup.auto.keygen，或者 common 中的
-                // 这里为了精简，我们先取 base 配置（通常是 common.base）
                 val baseConfig = parsedConfig.commonConfigs["base"] ?: emptyMap()
                 val autoKeygen = (baseConfig["ssh.setup.auto.keygen"]?.toBoolean() ?: false)
-                // 将 autoKeygen 存储到 extra properties，以便 SshSetupManager 访问
                 extra.set("ssh.setup.auto.keygen", autoKeygen)
-                println("[DEBUG-envLoad] 从remote.yml加载 ssh.setup.auto.keygen: $autoKeygen")
-            } catch (e: Exception) {
-                println("[DEBUG-envLoad] Error parsing remote.yml for ssh.setup.auto.keygen: ${e.message}")
-                e.printStackTrace()
-            }
-        } else {
-            println("[DEBUG-envLoad] remote.yml file not found: ${remoteYmlFile.absolutePath}")
+            } catch (ignore: Exception) {}
+            
+            return true
         }
-        
         return false
+    }
+
+    /**
+     * 为了兼容性，保留 Task 版本的 envLoad
+     */
+    @JvmStatic
+    fun envLoad(task: Task, profile: String): Boolean {
+        return envLoad(task.project, profile)
     }
 
     /**
@@ -245,7 +249,7 @@ object RemotePluginUtils {
     }
 
     fun getServicePort(task: Task, @Suppress("UNUSED_PARAMETER") scriptDir: String = ""): String {
-        val extra = task.extensions.extraProperties
+        val extra = task.project.extensions.extraProperties
         val serviceName = task.project.name
         val port = if (extra.has("service_ports.$serviceName")) extra.get("service_ports.$serviceName").toString() else null
         
@@ -265,7 +269,7 @@ service_ports:
      * 检查用户确认，用于生产环境任务安全防护
      */
     fun checkConfirmation(task: Task, profile: String) {
-        val extra = task.extensions.extraProperties
+        val extra = task.project.extensions.extraProperties
         
         // 1. 检查命令行属性绕过 -Pstart.need_confirm=false
         if (task.project.hasProperty("start.need_confirm")) {
