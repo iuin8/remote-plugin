@@ -43,17 +43,17 @@ class RemotePlugin : Plugin<Project> {
 
         // 在所有子模块注册任务
         project.subprojects.forEach { sub ->
+            val remoteTaskProviders = mutableListOf<org.gradle.api.tasks.TaskProvider<out Task>>()
+            
             environments.forEach { profile ->
-                // val profileCap = profile.substring(0, 1).toUpperCase() + profile.substring(1) // 不再使用
-
                 // 预检查任务 (用于确认)
                 val preCheckTask = sub.tasks.register("${profile}_pre_check") { t ->
-                    t.group = "remote"
                     t.doFirst {
                         RemotePluginUtils.envLoad(t, profile)
                         RemotePluginUtils.checkConfirmation(t, profile)
                     }
                 }
+                remoteTaskProviders.add(preCheckTask)
 
                 // 强制 bootJar 在预检查之后运行 (如果存在)
                 sub.tasks.matching { it.name == "bootJar" }.all { bootJar ->
@@ -61,49 +61,57 @@ class RemotePlugin : Plugin<Project> {
                 }
 
                 // 发布任务
-                sub.tasks.register("${profile}_publish", Exec::class.java) { t ->
-                    t.group = "remote"
+                val publishTask = sub.tasks.register("${profile}_publish", Exec::class.java) { t ->
                     t.dependsOn(preCheckTask)
                     publishTask(t, profile, scriptDir)
                 }
+                remoteTaskProviders.add(publishTask)
 
                 // Debug任务
-                sub.tasks.register("${profile}_debug", Exec::class.java) { t ->
-                    t.group = "remote"
+                val debugTask = sub.tasks.register("${profile}_debug", Exec::class.java) { t ->
                     t.dependsOn(preCheckTask)
                     debugTask(t, profile, scriptDir)
                 }
+                remoteTaskProviders.add(debugTask)
 
                 // Arthas任务
-                sub.tasks.register("${profile}_arthas", Exec::class.java) { t ->
-                    t.group = "remote"
+                val arthasTask = sub.tasks.register("${profile}_arthas", Exec::class.java) { t ->
                     // Arthas 任务目前用户决定不需要强制确认，保持现状
                     arthasTask(t, profile, scriptDir)
                 }
+                remoteTaskProviders.add(arthasTask)
 
                 // 日志任务
-                sub.tasks.register("${profile}_log") { t ->
-                    t.group = "remote"
+                val logTask = sub.tasks.register("${profile}_log") { t ->
                     logTask(t, profile)
                 }
+                remoteTaskProviders.add(logTask)
 
                 // 重启任务
-                sub.tasks.register("${profile}_restart", Exec::class.java) { t ->
-                    t.group = "remote"
+                val restartTask = sub.tasks.register("${profile}_restart", Exec::class.java) { t ->
                     t.dependsOn(preCheckTask)
                     restartTask(t, profile)
                 }
+                remoteTaskProviders.add(restartTask)
 
                 // Jenkins构建任务
-                sub.tasks.register("${profile}_jenkins_build") { t ->
-                    t.group = "remote"
+                val jenkinsBuildTask = sub.tasks.register("${profile}_jenkins_build") { t ->
                     t.dependsOn(preCheckTask)
                     jenkinsBuildTask(t, profile)
                 }
+                remoteTaskProviders.add(jenkinsBuildTask)
+
                 // Jenkins构建信息查看
-                sub.tasks.register("${profile}_jenkins_last_build_info") { t ->
-                    t.group = "remote"
+                val jenkinsInfoTask = sub.tasks.register("${profile}_jenkins_last_build_info") { t ->
                     jenkinsLastBuildInfoTask(t, profile)
+                }
+                remoteTaskProviders.add(jenkinsInfoTask)
+            }
+
+            // 核心优化：只有在检测到 bootJar 任务时（说明是 Spring Boot 子项目），才将这些任务显示在 "remote" 组中
+            sub.tasks.matching { it.name == "bootJar" }.all {
+                remoteTaskProviders.forEach { provider ->
+                    provider.configure { t -> t.group = "remote" }
                 }
             }
         }
