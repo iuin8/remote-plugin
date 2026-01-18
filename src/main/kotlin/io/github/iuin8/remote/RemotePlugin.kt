@@ -10,11 +10,14 @@ import java.io.BufferedReader
 import java.io.File
 import java.io.InputStreamReader
 import java.util.Properties
+import org.gradle.api.logging.Logging
 
 // 导入工具类
 import io.github.iuin8.remote.RemotePluginUtils
 
 class RemotePlugin : Plugin<Project> {
+    private val logger = Logging.getLogger(RemotePlugin::class.java)
+
     override fun apply(project: Project) {
         // 默认脚本目录：优先使用项目根目录下的 gradle/remote-plugin
         val scriptDirFile = File(project.rootDir, "gradle/remote-plugin")
@@ -30,7 +33,7 @@ class RemotePlugin : Plugin<Project> {
                 val parsedConfig = ConfigMerger.parseSimpleYamlWithBase(remoteYmlFile)
                 environments.addAll(parsedConfig.envConfigs.keys)
             } catch (e: Exception) {
-                println("[remote-plugin] 解析remote.yml时出错: ${e.message}")
+                logger.debug("[remote-plugin] 解析remote.yml时出错: ${e.message}")
             }
         }
         

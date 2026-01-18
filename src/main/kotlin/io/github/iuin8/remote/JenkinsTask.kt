@@ -1,9 +1,11 @@
 package io.github.iuin8.remote
 
 import org.gradle.api.Task
+import org.gradle.api.logging.Logging
 import java.net.URI
 
 object JenkinsTask {
+    private val logger = Logging.getLogger(JenkinsTask::class.java)
 
     /**
      * Jenkins构建任务
@@ -20,7 +22,7 @@ object JenkinsTask {
             val jobName = config["job"]
 
             if (url == null || user == null || token == null || jobName == null) {
-                println("[jenkins] Jenkins配置不完整，跳过任务。")
+                logger.debug("[jenkins] Jenkins配置不完整，跳过任务。")
                 return@doFirst
             }
 
@@ -39,14 +41,14 @@ object JenkinsTask {
                 val targetJob = findJobRecursive(jenkinsServer, jobName)
                 
                 if (targetJob != null) {
-                    println("[jenkins] 正在触发构建...")
+                    logger.debug("[jenkins] 正在触发构建...")
                     // true表示请求crumb，防止403
                     val queueRef = targetJob.build(true) 
                     
                     println("[jenkins] 已加入队列: ${queueRef.queueItemUrlPart}")
                     
                     // 等待构建开始并获取构建号
-                    println("[jenkins] 等待构建开始...")
+                    logger.debug("[jenkins] 等待构建开始...")
                     var build: com.offbytwo.jenkins.model.Build? = null
                     
                     // 轮询队列项 (30秒超时)
@@ -78,7 +80,7 @@ object JenkinsTask {
                     
                     if (build != null) {
                          // 获取构建信息
-                         println("[jenkins] 获取构建信息...")
+                         logger.debug("[jenkins] 获取构建信息...")
                          
                          var details = build.details()
                          var retryCount = 0
@@ -138,7 +140,7 @@ object JenkinsTask {
             val jobName = config["job"]
 
             if (url == null || user == null || token == null || jobName == null) {
-                println("[jenkins] Jenkins配置不完整，跳过任务。")
+                logger.debug("[jenkins] Jenkins配置不完整，跳过任务。")
                 return@doFirst
             }
 

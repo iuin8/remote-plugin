@@ -4,12 +4,14 @@ import java.io.File
 import java.util.concurrent.TimeUnit
 import java.io.InputStreamReader
 import java.nio.charset.StandardCharsets
+import org.gradle.api.logging.Logging
 
 /**
  * SSH 配置和密钥自动设置管理器
  * 负责自动生成配置文件、密钥对，以及修复私钥文件权限
  */
 object SshSetupManager {
+    private val logger = Logging.getLogger(SshSetupManager::class.java)
     
     /**
      * 设置项目的 SSH 配置
@@ -19,7 +21,7 @@ object SshSetupManager {
      */
     fun setupProjectSsh(projectRootDir: File) {
         try {
-            println("[remote-plugin] 正在初始化项目配置...")
+            logger.debug("[remote-plugin] 正在初始化项目配置...")
             
             // 第一步：生成配置文件
             generateConfigFiles(projectRootDir)
@@ -27,12 +29,12 @@ object SshSetupManager {
             // 第二步：修复私钥权限
             fixPrivateKeyPermissions(projectRootDir)
             
-            println("[remote-plugin] 配置初始化完成，请根据实际情况修改 remote.yml")
+            logger.debug("[remote-plugin] 配置初始化完成，请根据实际情况修改 remote.yml")
             
             // 添加完成提示
             if (RemotePluginUtils.isWindows()) {
-                println("[remote-plugin] 检测到 Windows 系统，跳过权限检查")
-                println("[remote-plugin] 配置文件检查完成")
+                logger.debug("[remote-plugin] 检测到 Windows 系统，跳过权限检查")
+                logger.debug("[remote-plugin] 配置文件检查完成")
             }
             
         } catch (e: Exception) {
@@ -79,8 +81,8 @@ object SshSetupManager {
         
         // 如果未启用自动密钥生成，提示用户
         if (!autoKeygen) {
-            println("[remote-plugin] ℹ 密钥自动生成已禁用（默认）")
-            println("[remote-plugin] 提示：如需自动生成密钥，请在 remote.yml 中设置 ssh.setup.auto.keygen: true")
+            logger.debug("[remote-plugin] ℹ 密钥自动生成已禁用（默认）")
+            logger.debug("[remote-plugin] 提示：如需自动生成密钥，请在 remote.yml 中设置 ssh.setup.auto.keygen: true")
             return
         }
         
@@ -246,22 +248,22 @@ object SshSetupManager {
             return
         }
         
-        println("[remote-plugin] 检查 SSH 私钥文件权限...")
-        println("[remote-plugin] 找到 ${privateKeyFiles.size} 个私钥文件")
+        logger.debug("[remote-plugin] 检查 SSH 私钥文件权限...")
+        logger.debug("[remote-plugin] 找到 ${privateKeyFiles.size} 个私钥文件")
         
         var fixedCount = 0
         
         privateKeyFiles.forEach { file ->
             // 检查当前权限
             if (RemotePluginUtils.isWindows()) {
-                println("[remote-plugin] ✓ ${file.name} - Windows 系统跳过权限检查")
+                logger.debug("[remote-plugin] ✓ ${file.name} - Windows 系统跳过权限检查")
                 return@forEach
             }
             
             // 简单检查权限（注意：Java 的 canRead/Writable/Execute 不精确反映 Unix 权限）
             // 这里我们直接尝试修复权限
             if (setFilePermissions(file, true, true, false)) {
-                println("[remote-plugin] ✓ ${file.name} - 已修复权限 (600)")
+                logger.debug("[remote-plugin] ✓ ${file.name} - 已修复权限 (600)")
                 fixedCount++
             } else {
                 println("[remote-plugin] ⚠ 无法修复私钥权限：${file.name} (权限不足)")
@@ -269,7 +271,7 @@ object SshSetupManager {
             }
         }
         
-        println("[remote-plugin] SSH 私钥权限检查完成")
+        logger.debug("[remote-plugin] SSH 私钥权限检查完成")
     }
     
     /**

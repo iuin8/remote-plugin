@@ -3,10 +3,12 @@
 `io.github.iuin8.remote` is a Gradle plugin designed to simplify deployment pipelines by executing local and remote shell commands.
 
 ## Features
-- **Remote Execution**: Execute shell commands on remote servers via SSH.
-- **Local Execution**: Run local shell scripts as part of your build process.
-- **Jenkins Integration**: Easily integrate with Jenkins for automated deployments.
-- **Configuration Management**: centralized configuration for ports, logs, and services via `remote.yml`.
+- **High Performance**: Pre-emptive configuration loading with zero redundancy.
+- **Production Safety**: Smart confirmation prompts for production environments (`prod`).
+- **Clean Output**: Optimized logging levels for a noise-free console experience.
+- **Zero-Config SSH**: Automatic SSH configuration and key management for project isolation.
+- **Remote Execution**: Execute shell commands on remote servers via SSH with PTY support.
+- **Jenkins Integration**: Deep integration including user-triggered info and automated build logic.
 
 ## Installation
 
@@ -14,7 +16,7 @@ Using the plugins DSL:
 
 ```groovy
 plugins {
-  id "io.github.iuin8.remote" version "0.1.37"
+  id "io.github.iuin8.remote" version "1.4.1"
 }
 ```
 

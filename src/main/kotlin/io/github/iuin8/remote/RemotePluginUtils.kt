@@ -3,6 +3,7 @@ package io.github.iuin8.remote
 import org.gradle.api.GradleException
 import org.gradle.api.Project
 import org.gradle.api.Task
+import org.gradle.api.logging.Logging
 import org.gradle.api.provider.Property
 import org.gradle.api.tasks.Exec
 import org.gradle.api.tasks.Input
@@ -18,18 +19,23 @@ import java.util.Scanner
  * RemotePlugin 工具类，包含非任务相关的辅助方法
  */
 object RemotePluginUtils {
+    private val logger = Logging.getLogger(RemotePluginUtils::class.java)
+
+    fun logDebug(msg: String) {
+        logger.debug("[remote-plugin] $msg")
+    }
     /**
      * 判断是否为 Windows 系统
      */
     fun isWindows(): Boolean {
-        return System.getProperty("os.name").toLowerCase().contains("windows")
+        return System.getProperty("os.name").lowercase().contains("windows")
     }
 
     /**
      * 判断是否为 Mac 系统
      */
     fun isMac(): Boolean {
-        return System.getProperty("os.name").toLowerCase().contains("mac")
+        return System.getProperty("os.name").lowercase().contains("mac")
     }
 
     /**
@@ -208,10 +214,10 @@ object RemotePluginUtils {
                 extra.set("remote_loaded_profile", profile)
                 
                 if (loadedProperties.isNotEmpty()) {
-                    println("[remote-plugin] 成功从remote.yml加载 ${loadedProperties.size} 个环境 $profile 的配置项")
+                    logDebug("成功从remote.yml加载 ${loadedProperties.size} 个环境 $profile 的配置项")
                 }
             } catch (e: Exception) {
-                println("[remote-plugin] 加载环境 $profile 时出错: ${e.message}")
+                logDebug("加载环境 $profile 时出错: ${e.message}")
             }
 
             // SshSetupManager 相关的逻辑
@@ -286,7 +292,7 @@ service_ports:
         
         // 3. 智能默认值：如果未显式配置，且环境名包含 prod，则默认为 true
         if (needConfirm == null) {
-            needConfirm = profile.toLowerCase().contains("prod")
+            needConfirm = profile.lowercase().contains("prod")
         }
         
         if (!needConfirm) return
