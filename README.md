@@ -17,7 +17,7 @@ Using the plugins DSL:
 
 ```groovy
 plugins {
-  id "io.github.iuin8.remote" version "1.4.1"
+  id "io.github.iuin8.remote" version "1.4.2"
 }
 ```
 

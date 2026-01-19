@@ -7,7 +7,8 @@ import java.io.File
  */
 data class ParsedConfig(
     val commonConfigs: Map<String, Map<String, String>> = emptyMap(),
-    val envConfigs: Map<String, Map<String, String>> = emptyMap()
+    val envConfigs: Map<String, Map<String, String>> = emptyMap(),
+    val servicePorts: Map<String, String> = emptyMap()
 )
 
 /**
@@ -23,8 +24,9 @@ object ConfigMerger {
     fun parseSimpleYamlWithBase(file: File): ParsedConfig {
         val commonConfigs = mutableMapOf<String, MutableMap<String, String>>()
         val envConfigs = mutableMapOf<String, MutableMap<String, String>>()
+        val servicePortsMap = mutableMapOf<String, String>()
         
-        var currentSection: String? = null // "common" or "environments"
+        var currentSection: String? = null // "common", "environments" or "service_ports"
         var currentBlock: String? = null   // e.g., "base" or "dev"
         var blockIndent: Int = -1          // Indentation of the current top-level block
         
@@ -37,15 +39,22 @@ object ConfigMerger {
             
             if (line.isEmpty() || line.startsWith("#")) return@forEachLine
             
-            if (line == "common:") {
+            if (indent == 0 && line == "common:") {
                 currentSection = "common"
                 currentBlock = null
                 blockIndent = -1
                 pathStack.clear()
                 return@forEachLine
             }
-            if (line == "environments:") {
+            if (indent == 0 && line == "environments:") {
                 currentSection = "environments"
+                currentBlock = null
+                blockIndent = -1
+                pathStack.clear()
+                return@forEachLine
+            }
+            if (indent == 0 && line == "service_ports:") {
+                currentSection = "service_ports"
                 currentBlock = null
                 blockIndent = -1
                 pathStack.clear()
@@ -78,15 +87,21 @@ object ConfigMerger {
                     val fullKey = (pathStack.map { it.second } + key).joinToString(".")
                     val targetMap = if (currentSection == "common") {
                         commonConfigs.getOrPut(currentBlock!!) { mutableMapOf() }
-                    } else {
+                    } else if (currentSection == "environments") {
                         envConfigs.getOrPut(currentBlock!!) { mutableMapOf() }
+                    } else {
+                        null
                     }
-                    targetMap[fullKey] = value
+                    targetMap?.put(fullKey, value)
+
+                    if (currentSection == "service_ports") {
+                        servicePortsMap[key] = value
+                    }
                 }
             }
         }
         
-        return ParsedConfig(commonConfigs, envConfigs)
+        return ParsedConfig(commonConfigs, envConfigs, servicePortsMap)
     }
 
     /**
@@ -106,7 +121,15 @@ object ConfigMerger {
         }
         
         val mergedConfig = baseConfig.toMutableMap()
+        
+        // 合并环境特有配置
         mergedConfig.putAll(envConfig)
+        
+        // 合并顶层 service_ports (提高优先级或作为补充)
+        parsedConfig.servicePorts.forEach { (k, v) ->
+            mergedConfig["service_ports.$k"] = v
+        }
+        
         return mergedConfig
     }
 }

@@ -1,4 +1,4 @@
-# Gradle Remote Plugin 使用指南 (v1.4.1)
+# Gradle Remote Plugin 使用指南 (v1.4.2)
 
 [English Documentation](README.md) | [Changelog](CHANGELOG.md)
 
@@ -19,7 +19,7 @@
 
 ```groovy
 plugins {
-    id 'io.github.iuin8.remote' version '1.4.1'
+    id 'io.github.iuin8.remote' version '1.4.2'
 }
 ```
 

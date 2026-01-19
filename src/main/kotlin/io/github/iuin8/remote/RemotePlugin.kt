@@ -37,6 +37,19 @@ class RemotePlugin : Plugin<Project> {
             }
         }
         
+        // 2. 获取所有已配置的服务名称 (用于过滤子项目)
+        val configuredServices = mutableSetOf<String>()
+        if (remoteYmlFile.exists()) {
+            try {
+                val parsedConfig = ConfigMerger.parseSimpleYamlWithBase(remoteYmlFile)
+                // 顶层 service_ports
+                configuredServices.addAll(parsedConfig.servicePorts.keys)
+                // common.base 中的 service_ports
+                parsedConfig.commonConfigs["base"]?.keys?.filter { it.startsWith("service_ports.") }?.forEach {
+                    configuredServices.add(it.substringAfter("service_ports."))
+                }
+            } catch (ignore: Exception) {}
+        }
 
         // 设置 SSH 配置和密钥自动管理
         SshSetupManager.setupProjectSsh(project.rootDir)
@@ -86,9 +99,12 @@ class RemotePlugin : Plugin<Project> {
         }
 
         // 在所有子模块注册任务
-        project.subprojects.forEach { sub ->
-            val remoteTaskProviders = mutableListOf<org.gradle.api.tasks.TaskProvider<out Task>>()
-            
+        project.subprojects { sub ->
+            // 核心优化：只对在 remote.yml 的 service_ports 中定义过的子项目注册任务
+            if (!configuredServices.contains(sub.name)) {
+                return@subprojects
+            }
+
             environments.forEach { profile ->
                 val groupName = "remote-$profile"
 
