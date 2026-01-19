@@ -6,6 +6,7 @@
 - **High Performance**: Pre-emptive configuration loading with zero redundancy.
 - **Production Safety**: Smart confirmation prompts for production environments (`prod`).
 - **Clean Output**: Optimized logging levels for a noise-free console experience.
+- **Environment Grouping**: Tasks are automatically grouped by environment (e.g., `remote-prod`) to prevent list overload.
 - **Zero-Config SSH**: Automatic SSH configuration and key management for project isolation.
 - **Remote Execution**: Execute shell commands on remote servers via SSH with PTY support.
 - **Jenkins Integration**: Deep integration including user-triggered info and automated build logic.

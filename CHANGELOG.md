@@ -2,9 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
-## [1.4.1] - 2026-01-18
+## [1.4.1] - 2026-01-19
 
 ### Added
+- **Environment-based Task Grouping**: Tasks are now grouped by environment (e.g., `remote-prod`, `remote-test`) in Gradle and IDEs, preventing task overload in a single group.
 - **Production Safety Prompt**: Automatic confirmation prompts for `prod` environments or sensitive tasks.
 - **Smart PTY Wrapping**: Automatically uses `script` command to force PTY on Unix-like systems, enabling remote progress bars (like scp/maven) in Gradle.
 - **Zero-Config SSH Alias Support**: Enhanced SSH configuration management with project-level isolation.

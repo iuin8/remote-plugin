@@ -90,12 +90,14 @@ class RemotePlugin : Plugin<Project> {
             val remoteTaskProviders = mutableListOf<org.gradle.api.tasks.TaskProvider<out Task>>()
             
             environments.forEach { profile ->
+                val groupName = "remote-$profile"
+
                 // 预检查任务 (作为占位符，逻辑已移至 whenReady)
                 val preCheckTask = sub.tasks.register("${profile}_pre_check") { t ->
+                    t.group = groupName
                     t.extensions.extraProperties.set("remote_sensitive", true)
                     t.extensions.extraProperties.set("remote_profile", profile)
                 }
-                remoteTaskProviders.add(preCheckTask)
 
                 // 强制 bootJar 在预检查之后运行 (如果存在)
                 sub.tasks.matching { it.name == "bootJar" }.all { bootJar ->
@@ -103,68 +105,61 @@ class RemotePlugin : Plugin<Project> {
                 }
 
                 // 发布任务
-                val publishTask = sub.tasks.register("${profile}_publish", Exec::class.java) { t ->
+                sub.tasks.register("${profile}_publish", Exec::class.java) { t ->
+                    t.group = groupName
                     t.extensions.extraProperties.set("remote_sensitive", true)
                     t.extensions.extraProperties.set("remote_profile", profile)
                     t.dependsOn(preCheckTask)
                     publishTask(t, profile, scriptDir)
                 }
-                remoteTaskProviders.add(publishTask)
 
                 // Debug任务
-                val debugTask = sub.tasks.register("${profile}_debug", Exec::class.java) { t ->
+                sub.tasks.register("${profile}_debug", Exec::class.java) { t ->
+                    t.group = groupName
                     t.extensions.extraProperties.set("remote_sensitive", true)
                     t.extensions.extraProperties.set("remote_profile", profile)
                     t.dependsOn(preCheckTask)
                     debugTask(t, profile, scriptDir)
                 }
-                remoteTaskProviders.add(debugTask)
 
                 // Arthas任务
-                val arthasTask = sub.tasks.register("${profile}_arthas", Exec::class.java) { t ->
+                sub.tasks.register("${profile}_arthas", Exec::class.java) { t ->
+                    t.group = groupName
                     t.extensions.extraProperties.set("remote_profile", profile)
                     // Arthas 任务目前用户决定不需要强制确认，保持现状
                     arthasTask(t, profile, scriptDir)
                 }
-                remoteTaskProviders.add(arthasTask)
 
                 // 日志任务
-                val logTask = sub.tasks.register("${profile}_log") { t ->
+                sub.tasks.register("${profile}_log") { t ->
+                    t.group = groupName
                     t.extensions.extraProperties.set("remote_profile", profile)
                     logTask(t, profile)
                 }
-                remoteTaskProviders.add(logTask)
 
                 // 重启任务
-                val restartTask = sub.tasks.register("${profile}_restart", Exec::class.java) { t ->
+                sub.tasks.register("${profile}_restart", Exec::class.java) { t ->
+                    t.group = groupName
                     t.extensions.extraProperties.set("remote_sensitive", true)
                     t.extensions.extraProperties.set("remote_profile", profile)
                     t.dependsOn(preCheckTask)
                     restartTask(t, profile)
                 }
-                remoteTaskProviders.add(restartTask)
 
                 // Jenkins构建任务
-                val jenkinsBuildTask = sub.tasks.register("${profile}_jenkins_build") { t ->
+                sub.tasks.register("${profile}_jenkins_build") { t ->
+                    t.group = groupName
                     t.extensions.extraProperties.set("remote_sensitive", true)
                     t.extensions.extraProperties.set("remote_profile", profile)
                     t.dependsOn(preCheckTask)
                     jenkinsBuildTask(t, profile)
                 }
-                remoteTaskProviders.add(jenkinsBuildTask)
 
                 // Jenkins构建信息查看
-                val jenkinsInfoTask = sub.tasks.register("${profile}_jenkins_last_build_info") { t ->
+                sub.tasks.register("${profile}_jenkins_last_build_info") { t ->
+                    t.group = groupName
                     t.extensions.extraProperties.set("remote_profile", profile)
                     jenkinsLastBuildInfoTask(t, profile)
-                }
-                remoteTaskProviders.add(jenkinsInfoTask)
-            }
-
-            // 核心优化：只有在检测到 bootJar 任务时（说明是 Spring Boot 子项目），才将这些任务显示在 "remote" 组中
-            sub.tasks.matching { it.name == "bootJar" }.all {
-                remoteTaskProviders.forEach { provider ->
-                    provider.configure { t -> t.group = "remote" }
                 }
             }
         }

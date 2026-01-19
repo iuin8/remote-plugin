@@ -28,14 +28,14 @@ object RemotePluginUtils {
      * 判断是否为 Windows 系统
      */
     fun isWindows(): Boolean {
-        return System.getProperty("os.name").lowercase().contains("windows")
+        return System.getProperty("os.name").toLowerCase().contains("windows")
     }
 
     /**
      * 判断是否为 Mac 系统
      */
     fun isMac(): Boolean {
-        return System.getProperty("os.name").lowercase().contains("mac")
+        return System.getProperty("os.name").toLowerCase().contains("mac")
     }
 
     /**
@@ -292,7 +292,7 @@ service_ports:
         
         // 3. 智能默认值：如果未显式配置，且环境名包含 prod，则默认为 true
         if (needConfirm == null) {
-            needConfirm = profile.lowercase().contains("prod")
+            needConfirm = profile.toLowerCase().contains("prod")
         }
         
         if (!needConfirm) return
