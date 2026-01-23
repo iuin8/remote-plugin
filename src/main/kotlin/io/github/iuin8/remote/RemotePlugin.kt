@@ -24,32 +24,10 @@ class RemotePlugin : Plugin<Project> {
         val scriptDir = scriptDirFile.absolutePath
         val remoteYmlFile = File(scriptDirFile, "remote.yml")
 
-        // 扫描环境配置
-        val environments = mutableSetOf<String>()
-        
-        // 1. 从remote.yml的environments部分获取环境配置
-        if (remoteYmlFile.exists()) {
-            try {
-                val parsedConfig = ConfigMerger.parseSimpleYamlWithBase(remoteYmlFile)
-                environments.addAll(parsedConfig.envConfigs.keys)
-            } catch (e: Exception) {
-                logger.debug("[remote-plugin] 解析remote.yml时出错: ${e.message}")
-            }
-        }
-        
-        // 2. 获取所有已配置的服务名称 (用于过滤子项目)
-        val configuredServices = mutableSetOf<String>()
-        if (remoteYmlFile.exists()) {
-            try {
-                val parsedConfig = ConfigMerger.parseSimpleYamlWithBase(remoteYmlFile)
-                // 顶层 service_ports
-                configuredServices.addAll(parsedConfig.servicePorts.keys)
-                // common.base 中的 service_ports
-                parsedConfig.commonConfigs["base"]?.keys?.filter { it.startsWith("service_ports.") }?.forEach {
-                    configuredServices.add(it.substringAfter("service_ports."))
-                }
-            } catch (ignore: Exception) {}
-        }
+        // 使用配置合并工具扫描所有环境和服务
+        val config = ConfigMerger.scanConfig(project)
+        val environments = config.environments
+        val configuredServices = config.configuredServices
 
         // 设置 SSH 配置和密钥自动管理
         SshSetupManager.setupProjectSsh(project.rootDir)
@@ -78,7 +56,7 @@ class RemotePlugin : Plugin<Project> {
                         
                         // 1. 确保环境配置已加载 (Project 级别)
                         if (!loadedProfiles.contains("${t.project.path}:$profile")) {
-                            RemotePluginUtils.envLoad(t.project, profile)
+                            ConfigMerger.envLoad(t.project, profile)
                             loadedProfiles.add("${t.project.path}:$profile")
                         }
 

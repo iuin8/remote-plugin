@@ -1,4 +1,4 @@
-# Gradle Remote Plugin 使用指南 (v1.4.2)
+# Gradle Remote Plugin 使用指南 (v1.4.4)
 
 [English Documentation](README.md) | [Changelog](CHANGELOG.md)
 
@@ -19,7 +19,7 @@
 
 ```groovy
 plugins {
-    id 'io.github.iuin8.remote' version '1.4.2'
+    id 'io.github.iuin8.remote' version '1.4.4'
 }
 ```
 
@@ -171,9 +171,16 @@ Host cloudflared.fa.internet.company
 - 发生 Host 名称冲突时，只有最先匹配到的配置会生效
 - 项目配置通过 Include 引入，优先级高于系统配置中的后续定义
 
-### 版本控制建议
+### 6. 环境变量与本地覆盖 (v1.4.3+)
+
+为了安全管理敏感信息（如 Jenkins Token），插件支持：
+- **占位符替换**：在 `remote.yml` 中使用 `${MY_TOKEN}`，插件会自动从环境变量或 Gradle Project 属性中读取。
+- **本地覆盖文件**：支持在同级目录下创建 `remote-local.yml`，其中的配置会覆盖 `remote.yml`。建议将此文件加入 `.gitignore`。
+
+### 7. 版本控制建议
 
 - `remote.yml`：建议纳入 Git 管理，便于团队共享环境配置
+- `remote-local.yml`：**强烈建议**加入 `.gitignore`，用于存放个人 Token 等敏感信息
 - `.ssh/config`：根据实际情况选择
   - 如果包含敏感信息（私有主机地址、用户名等），建议添加到 `.gitignore`
   - 如果是通用配置（如跳板机配置），可以纳入版本管理

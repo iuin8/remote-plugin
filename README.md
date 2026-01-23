@@ -1,4 +1,4 @@
-# Remote Exec Plugin
+# Remote Exec Plugin (v1.4.4)
 
 `io.github.iuin8.remote` is a Gradle plugin designed to simplify deployment pipelines by executing local and remote shell commands.
 
@@ -17,7 +17,7 @@ Using the plugins DSL:
 
 ```groovy
 plugins {
-  id "io.github.iuin8.remote" version "1.4.2"
+  id "io.github.iuin8.remote" version "1.4.4"
 }
 ```
 
@@ -115,9 +115,16 @@ When `gradle/remote-plugin/.ssh/config` exists in your project, the plugin autom
 - When Host name conflicts occur, only the first matched configuration takes effect
 - Project configurations have higher priority than subsequent definitions in system config
 
-### Version Control Recommendations
+### 6. Environment Variables and Local Overrides (v1.4.3+)
+
+For secure management of sensitive information (e.g., Jenkins Tokens), the plugin supports:
+- **Placeholder Substitution**: Use `${MY_TOKEN}` in `remote.yml`, and the plugin will automatically resolve it from environment variables or Gradle project properties.
+- **Local Override File**: Create `remote-local.yml` in the same directory to override configurations in `remote.yml`. **Highly recommended** to add this file to your `.gitignore`.
+
+### 7. Version Control Recommendations
 
 - `remote.yml`: Recommended to include in Git for team sharing
+- `remote-local.yml`: **Strongly recommended** to add to `.gitignore` for secrets
 - `.ssh/config`: Choose based on your needs
   - If it contains sensitive information (private hosts, usernames), add to `.gitignore`
   - If it's generic configuration (like bastion hosts), can be version controlled

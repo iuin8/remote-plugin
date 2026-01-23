@@ -12,6 +12,14 @@ data class ParsedConfig(
 )
 
 /**
+ * 表示扫描后的概要配置，用于任务注册
+ */
+data class ScannedConfig(
+    val environments: Set<String> = emptySet(),
+    val configuredServices: Set<String> = emptySet()
+)
+
+/**
  * 配置合并工具类
  */
 object ConfigMerger {
@@ -106,16 +114,36 @@ object ConfigMerger {
 
     /**
      * 根据环境名称获取合并后的配置
+     * @param project 可选的 Gradle Project 对象，用于解析占位符
      */
-    fun getMergedConfigForEnvironment(file: File, environment: String): Map<String, String> {
-        if (!file.exists()) throw ConfigException("配置文件不存在: ${file.absolutePath}")
+    fun getMergedConfigForEnvironment(file: File, environment: String, project: org.gradle.api.Project? = null): Map<String, String> {
+        return getMergedConfigForEnvironment(listOf(file), environment, project)
+    }
+
+    /**
+     * 合并多个配置文件并获取环境配置
+     * 后面的文件优先级更高
+     */
+    fun getMergedConfigForEnvironment(files: List<File>, environment: String, project: org.gradle.api.Project? = null): Map<String, String> {
+        val existingFiles = files.filter { it.exists() }
+        if (existingFiles.isEmpty()) throw ConfigException("配置文件不存在")
+
+        // 逐个解析并简单合并 ParsedConfig
+        var finalParsedConfig = ParsedConfig()
+        existingFiles.forEach { file ->
+            val p = parseSimpleYamlWithBase(file)
+            finalParsedConfig = ParsedConfig(
+                commonConfigs = finalParsedConfig.commonConfigs + p.commonConfigs,
+                envConfigs = finalParsedConfig.envConfigs + p.envConfigs,
+                servicePorts = finalParsedConfig.servicePorts + p.servicePorts
+            )
+        }
         
-        val parsedConfig = parseSimpleYamlWithBase(file)
-        val envConfig = parsedConfig.envConfigs[environment] ?: emptyMap()
+        val envConfig = finalParsedConfig.envConfigs[environment] ?: emptyMap()
         
         val extends = envConfig["extends"]
         val baseConfig = if (extends != null) {
-            parsedConfig.commonConfigs[extends] ?: throw ConfigException("环境${environment}试图继承不存在的配置块${extends}")
+            finalParsedConfig.commonConfigs[extends] ?: throw ConfigException("环境${environment}试图继承不存在的配置块${extends}")
         } else {
             emptyMap()
         }
@@ -126,10 +154,87 @@ object ConfigMerger {
         mergedConfig.putAll(envConfig)
         
         // 合并顶层 service_ports (提高优先级或作为补充)
-        parsedConfig.servicePorts.forEach { (k, v) ->
+        finalParsedConfig.servicePorts.forEach { (k, v) ->
             mergedConfig["service_ports.$k"] = v
         }
         
+        // 如果提供了 project，则解析所有值中的占位符
+        if (project != null) {
+            mergedConfig.keys.forEach { key ->
+                mergedConfig[key] = RemotePluginUtils.resolvePlaceholders(mergedConfig[key]!!, project)
+            }
+        }
+        
         return mergedConfig
+    }
+
+    /**
+     * 扫描项目中的所有配置文件并提取概要信息
+     */
+    fun scanConfig(project: org.gradle.api.Project): ScannedConfig {
+        val environments = mutableSetOf<String>()
+        val configuredServices = mutableSetOf<String>()
+        
+        val scriptDirFile = File(project.rootDir, "gradle/remote-plugin")
+        val remoteYmlFile = File(scriptDirFile, "remote.yml")
+        val remoteLocalYmlFile = File(scriptDirFile, "remote-local.yml")
+        val ymlFiles = listOf(remoteYmlFile, remoteLocalYmlFile).filter { it.exists() }
+
+        ymlFiles.forEach { file ->
+            try {
+                val parsedConfig = parseSimpleYamlWithBase(file)
+                environments.addAll(parsedConfig.envConfigs.keys)
+                
+                // 顶层 service_ports
+                configuredServices.addAll(parsedConfig.servicePorts.keys)
+                // common.base 中的 service_ports
+                parsedConfig.commonConfigs["base"]?.keys?.filter { it.startsWith("service_ports.") }?.forEach {
+                    configuredServices.add(it.substringAfter("service_ports."))
+                }
+            } catch (e: Exception) {
+                // 静默失败
+            }
+        }
+        return ScannedConfig(environments, configuredServices)
+    }
+
+    /**
+     * 加载环境配置并应用到项目属性
+     */
+    fun envLoad(project: org.gradle.api.Project, profile: String): Boolean {
+        val extra = project.extensions.extraProperties
+        
+        // 如果已经加载过当前环境，则跳过
+        if (extra.has("remote_loaded_profile") && extra.get("remote_loaded_profile") == profile) {
+            return true
+        }
+
+        val scriptDirFile = File(project.rootDir, "gradle/remote-plugin")
+        val remoteYmlFile = File(scriptDirFile, "remote.yml")
+        val remoteLocalYmlFile = File(scriptDirFile, "remote-local.yml")
+        
+        if (remoteYmlFile.exists()) {
+            try {
+                val files = listOf(remoteYmlFile, remoteLocalYmlFile)
+                val mergedConfig = getMergedConfigForEnvironment(files, profile, project)
+                
+                mergedConfig.entries.forEach { (key, value) ->
+                    extra.set(key, value)
+                }
+                
+                extra.set("remote_loaded_profile", profile)
+                
+                // SshSetupManager 相关的逻辑 (基于合并后的配置)
+                val autoKeygen = if (extra.has("ssh.setup.auto.keygen")) {
+                    extra.get("ssh.setup.auto.keygen").toString().toBoolean()
+                } else false
+                extra.set("ssh.setup.auto.keygen", autoKeygen)
+                
+                return true
+            } catch (e: Exception) {
+                // 错误显示可以留给 debug
+            }
+        }
+        return false
     }
 }

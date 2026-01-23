@@ -77,6 +77,24 @@ object RemotePluginUtils {
     }
     
     /**
+     * 解析字符串中的占位符 ${VAR}，依次从以下来源获取值：
+     * 1. Project 属性 (gradle.properties 或 -P 参数)
+     * 2. 环境变量 (System.getenv)
+     */
+    fun resolvePlaceholders(value: String, project: Project): String {
+        val regex = Regex("\\$\\{([^}]+)}")
+        return regex.replace(value) { matchResult ->
+            val key = matchResult.groupValues[1]
+            val resolvedValue = if (project.hasProperty(key)) {
+                project.property(key)?.toString()
+            } else {
+                System.getenv(key)
+            }
+            resolvedValue ?: matchResult.value
+        }
+    }
+
+    /**
      * 替换配置值中的占位符（仅使用服务名）
      */
     fun replacePlaceholders(value: String, serviceName: String): String {
@@ -180,66 +198,7 @@ object RemotePluginUtils {
         return "bash -lc '$escapedBash'"
     }
 
-    /**
-     * 加载环境配置
-     * 支持配置继承机制
-     * 将配置加载到项目的 extra properties 中，避免任务级别重复加载
-     */
-    @JvmStatic
-    fun envLoad(project: Project, profile: String): Boolean {
-        val extra = project.extensions.extraProperties
-        
-        // 如果已经加载过当前环境，则跳过
-        if (extra.has("remote_loaded_profile") && extra.get("remote_loaded_profile") == profile) {
-            return true
-        }
 
-        // 尝试从remote.yml读取环境配置
-        val scriptDirFile = File(project.rootDir, "gradle/remote-plugin")
-        val remoteYmlFile = File(scriptDirFile, "remote.yml")
-        
-        if (remoteYmlFile.exists()) {
-            try {
-                // 使用新的配置合并机制
-                val mergedConfig = ConfigMerger.getMergedConfigForEnvironment(remoteYmlFile, profile)
-                
-                // 应用配置到项目属性
-                val loadedProperties = mutableMapOf<String, String>()
-                mergedConfig.entries.forEach { (key, value) ->
-                    extra.set(key, value)
-                    loadedProperties[key] = value
-                }
-                
-                // 标记已加载环境
-                extra.set("remote_loaded_profile", profile)
-                
-                if (loadedProperties.isNotEmpty()) {
-                    logDebug("成功从remote.yml加载 ${loadedProperties.size} 个环境 $profile 的配置项")
-                }
-            } catch (e: Exception) {
-                logDebug("加载环境 $profile 时出错: ${e.message}")
-            }
-
-            // SshSetupManager 相关的逻辑
-            try {
-                val parsedConfig = ConfigMerger.parseSimpleYamlWithBase(remoteYmlFile)
-                val baseConfig = parsedConfig.commonConfigs["base"] ?: emptyMap()
-                val autoKeygen = (baseConfig["ssh.setup.auto.keygen"]?.toBoolean() ?: false)
-                extra.set("ssh.setup.auto.keygen", autoKeygen)
-            } catch (ignore: Exception) {}
-            
-            return true
-        }
-        return false
-    }
-
-    /**
-     * 为了兼容性，保留 Task 版本的 envLoad
-     */
-    @JvmStatic
-    fun envLoad(task: Task, profile: String): Boolean {
-        return envLoad(task.project, profile)
-    }
 
     /**
      * 配置任务依赖于bootJar任务（如果存在）

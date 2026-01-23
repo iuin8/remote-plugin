@@ -2,12 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.4.4] - 2026-01-23
+
+### Refactored
+- **Configuration Logic Consolidation**: Centralized all configuration parsing, merging, scanning, and loading logic into `ConfigMerger.kt`. This significantly simplifies `RemotePlugin.kt` and `RemotePluginUtils.kt`, making the architecture cleaner and more maintainable.
+
+## [1.4.3] - 2026-01-23
+
 ## [1.4.2] - 2026-01-19
-
-### Added
-- **On-demand Task Registration**: Remote tasks are now only registered for subprojects listed in `service_ports` (top-level or base), keeping the Gradle task list clean in multi-module projects.
-
-## [1.4.1] - 2026-01-19
 - **Environment-based Task Grouping**: Tasks are now grouped by environment (e.g., `remote-prod`, `remote-test`) in Gradle and IDEs, preventing task overload in a single group.
 - **Production Safety Prompt**: Automatic confirmation prompts for `prod` environments or sensitive tasks.
 - **Smart PTY Wrapping**: Automatically uses `script` command to force PTY on Unix-like systems, enabling remote progress bars (like scp/maven) in Gradle.
