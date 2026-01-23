@@ -61,13 +61,7 @@ object ConfigMerger {
                 pathStack.clear()
                 return@forEachLine
             }
-            if (indent == 0 && line == "service_ports:") {
-                currentSection = "service_ports"
-                currentBlock = null
-                blockIndent = -1
-                pathStack.clear()
-                return@forEachLine
-            }
+
             
             // 调整 pathStack 到当前缩进级别
             while (pathStack.isNotEmpty() && pathStack.last().first >= indent) {
@@ -95,16 +89,10 @@ object ConfigMerger {
                     val fullKey = (pathStack.map { it.second } + key).joinToString(".")
                     val targetMap = if (currentSection == "common") {
                         commonConfigs.getOrPut(currentBlock!!) { mutableMapOf() }
-                    } else if (currentSection == "environments") {
-                        envConfigs.getOrPut(currentBlock!!) { mutableMapOf() }
                     } else {
-                        null
+                        envConfigs.getOrPut(currentBlock!!) { mutableMapOf() }
                     }
-                    targetMap?.put(fullKey, value)
-
-                    if (currentSection == "service_ports") {
-                        servicePortsMap[key] = value
-                    }
+                    targetMap[fullKey] = value
                 }
             }
         }
@@ -112,13 +100,7 @@ object ConfigMerger {
         return ParsedConfig(commonConfigs, envConfigs, servicePortsMap)
     }
 
-    /**
-     * 根据环境名称获取合并后的配置
-     * @param project 可选的 Gradle Project 对象，用于解析占位符
-     */
-    fun getMergedConfigForEnvironment(file: File, environment: String, project: org.gradle.api.Project? = null): Map<String, String> {
-        return getMergedConfigForEnvironment(listOf(file), environment, project)
-    }
+
 
     /**
      * 合并多个配置文件并获取环境配置
@@ -133,8 +115,8 @@ object ConfigMerger {
         existingFiles.forEach { file ->
             val p = parseSimpleYamlWithBase(file)
             finalParsedConfig = ParsedConfig(
-                commonConfigs = finalParsedConfig.commonConfigs + p.commonConfigs,
-                envConfigs = finalParsedConfig.envConfigs + p.envConfigs,
+                commonConfigs = deepMerge(finalParsedConfig.commonConfigs, p.commonConfigs),
+                envConfigs = deepMerge(finalParsedConfig.envConfigs, p.envConfigs),
                 servicePorts = finalParsedConfig.servicePorts + p.servicePorts
             )
         }
@@ -152,12 +134,7 @@ object ConfigMerger {
         
         // 合并环境特有配置
         mergedConfig.putAll(envConfig)
-        
-        // 合并顶层 service_ports (提高优先级或作为补充)
-        finalParsedConfig.servicePorts.forEach { (k, v) ->
-            mergedConfig["service_ports.$k"] = v
-        }
-        
+
         // 如果提供了 project，则解析所有值中的占位符
         if (project != null) {
             mergedConfig.keys.forEach { key ->
@@ -166,6 +143,22 @@ object ConfigMerger {
         }
         
         return mergedConfig
+    }
+
+    /**
+     * 深度合并 Map<String, Map<String, String>>
+     */
+    private fun deepMerge(base: Map<String, Map<String, String>>, override: Map<String, Map<String, String>>): Map<String, Map<String, String>> {
+        val result = base.toMutableMap()
+        override.forEach { (key, map) ->
+            val existing = result[key]
+            if (existing == null) {
+                result[key] = map
+            } else {
+                result[key] = existing + map
+            }
+        }
+        return result
     }
 
     /**
@@ -185,11 +178,16 @@ object ConfigMerger {
                 val parsedConfig = parseSimpleYamlWithBase(file)
                 environments.addAll(parsedConfig.envConfigs.keys)
                 
-                // 顶层 service_ports
-                configuredServices.addAll(parsedConfig.servicePorts.keys)
-                // common.base 中的 service_ports
-                parsedConfig.commonConfigs["base"]?.keys?.filter { it.startsWith("service_ports.") }?.forEach {
-                    configuredServices.add(it.substringAfter("service_ports."))
+                // 从所有配置块中提取以 service_ports. 开头的服务定义
+                parsedConfig.commonConfigs.values.forEach { map ->
+                    map.keys.filter { it.startsWith("service_ports.") }.forEach {
+                        configuredServices.add(it.substringAfter("service_ports."))
+                    }
+                }
+                parsedConfig.envConfigs.values.forEach { map ->
+                    map.keys.filter { it.startsWith("service_ports.") }.forEach {
+                        configuredServices.add(it.substringAfter("service_ports."))
+                    }
                 }
             } catch (e: Exception) {
                 // 静默失败

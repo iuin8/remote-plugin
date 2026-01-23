@@ -2,10 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
-## [1.4.4] - 2026-01-23
+## [1.4.8] - 2026-01-23
 
-### Refactored
-- **Configuration Logic Consolidation**: Centralized all configuration parsing, merging, scanning, and loading logic into `ConfigMerger.kt`. This significantly simplifies `RemotePlugin.kt` and `RemotePluginUtils.kt`, making the architecture cleaner and more maintainable.
+### Fixed
+- **Configuration Deep Merge**: Implemented a deep merge utility to ensure that settings in `remote-local.yml` do not overwrite entire configuration blocks (like `common.base`) from `remote.yml`. This fixes the issue where port mappings and other defaults were lost when local overrides were present.
+
+## [1.4.7] - 2026-01-23
+
+## [1.4.6] - 2026-01-23
+
+## [1.4.5] - 2026-01-23
+
+## [1.4.4] - 2026-01-23
 
 ## [1.4.3] - 2026-01-23
 

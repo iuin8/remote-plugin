@@ -21,9 +21,6 @@ import java.util.Scanner
 object RemotePluginUtils {
     private val logger = Logging.getLogger(RemotePluginUtils::class.java)
 
-    fun logDebug(msg: String) {
-        logger.debug("[remote-plugin] $msg")
-    }
     /**
      * 判断是否为 Windows 系统
      */
@@ -213,7 +210,7 @@ object RemotePluginUtils {
         task.onlyIf { task.project.tasks.findByName("bootJar") != null }
     }
 
-    fun getServicePort(task: Task, @Suppress("UNUSED_PARAMETER") scriptDir: String = ""): String {
+    fun getServicePort(task: Task): String {
         val extra = task.project.extensions.extraProperties
         val serviceName = task.project.name
         val port = if (extra.has("service_ports.$serviceName")) extra.get("service_ports.$serviceName").toString() else null

@@ -23,6 +23,7 @@ common:
           keygen: false
     service_ports:
       app: 8080
+      order-service: 8081
 
 # Environment configurations
 # Each environment can have its own settings
@@ -42,6 +43,8 @@ environments:
       server: test-server
     jenkins:
       job: "test-job"
+    service_ports:
+      other-service: 8082
 
   # UAT environment configuration
   UAT:

@@ -20,4 +20,5 @@ pluginManagement {
 
 rootProject.name = 'consumer-gradle6-sample'
 include 'app'
-include "other-service"
+include 'other-service'
+include 'order-service'

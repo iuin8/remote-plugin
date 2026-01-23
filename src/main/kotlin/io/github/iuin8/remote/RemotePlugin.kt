@@ -22,7 +22,6 @@ class RemotePlugin : Plugin<Project> {
         // 默认脚本目录：优先使用项目根目录下的 gradle/remote-plugin
         val scriptDirFile = File(project.rootDir, "gradle/remote-plugin")
         val scriptDir = scriptDirFile.absolutePath
-        val remoteYmlFile = File(scriptDirFile, "remote.yml")
 
         // 使用配置合并工具扫描所有环境和服务
         val config = ConfigMerger.scanConfig(project)
@@ -104,7 +103,7 @@ class RemotePlugin : Plugin<Project> {
                     t.extensions.extraProperties.set("remote_sensitive", true)
                     t.extensions.extraProperties.set("remote_profile", profile)
                     t.dependsOn(preCheckTask)
-                    publishTask(t, profile, scriptDir)
+                    publishTask(t, profile)
                 }
 
                 // Debug任务
@@ -113,7 +112,7 @@ class RemotePlugin : Plugin<Project> {
                     t.extensions.extraProperties.set("remote_sensitive", true)
                     t.extensions.extraProperties.set("remote_profile", profile)
                     t.dependsOn(preCheckTask)
-                    debugTask(t, profile, scriptDir)
+                    debugTask(t, profile)
                 }
 
                 // Arthas任务
@@ -121,7 +120,7 @@ class RemotePlugin : Plugin<Project> {
                     t.group = groupName
                     t.extensions.extraProperties.set("remote_profile", profile)
                     // Arthas 任务目前用户决定不需要强制确认，保持现状
-                    arthasTask(t, profile, scriptDir)
+                    arthasTask(t, profile)
                 }
 
                 // 日志任务
@@ -162,10 +161,10 @@ class RemotePlugin : Plugin<Project> {
     companion object {
 
         @JvmStatic
-        fun publishTask(task: Exec, profile: String, scriptDir: String) {
+        fun publishTask(task: Exec, profile: String) {
             RemotePluginUtils.configureTaskToDependOnBootJar(task)
 
-            task.workingDir = File(scriptDir)
+            // task.workingDir is not strictly needed here if we rely on project relative paths
             task.doFirst {
                 val extra = task.project.extensions.extraProperties
                 println("[publish] 项目: ${task.project.name} 环境: $profile 服务器: ${if (extra.has("ssh.server")) extra.get("ssh.server") else "未设置"} 基础目录: ${if (extra.has("remote.base_dir")) extra.get("remote.base_dir") else "未设置"}")
@@ -178,7 +177,7 @@ class RemotePlugin : Plugin<Project> {
                 }
 
                 // 读取服务端口并注入环境变量
-                val servicePort = RemotePluginUtils.getServicePort(task, scriptDir)
+                val servicePort = RemotePluginUtils.getServicePort(task)
 
                 applyCommonEnvironment(task, servicePort)
 
@@ -227,7 +226,7 @@ class RemotePlugin : Plugin<Project> {
         }
 
         @JvmStatic
-        fun debugTask(task: Exec, @Suppress("UNUSED_PARAMETER") profile: String, scriptDir: String) {
+        fun debugTask(task: Exec, @Suppress("UNUSED_PARAMETER") profile: String) {
             task.onlyIf { task.project.tasks.findByName("bootJar") != null }
             task.isIgnoreExitValue = true
             task.doFirst {
@@ -241,7 +240,7 @@ class RemotePlugin : Plugin<Project> {
                 val remoteBaseDir = if (extra.has("remote.base_dir")) extra.get("remote.base_dir").toString() else ""
                 if (remoteBaseDir.isBlank()) throw GradleException("remote.base_dir 未设置")
                 val serviceName = task.project.name
-                val servicePort = RemotePluginUtils.getServicePort(task, scriptDir)
+                val servicePort = RemotePluginUtils.getServicePort(task)
                 val startCmd = RemotePluginUtils.resolveStartCommand(task, remoteBaseDir, serviceName, servicePort)
                 val envMap = RemotePluginUtils.resolveStartEnv(task, remoteBaseDir, serviceName, servicePort)
                 val export = RemotePluginUtils.buildExportEnv(envMap)
@@ -265,13 +264,13 @@ class RemotePlugin : Plugin<Project> {
         }
 
         @JvmStatic
-        fun arthasTask(task: Exec, profile: String, scriptDir: String) {
+        fun arthasTask(task: Exec, profile: String) {
             // 只需要bootjar任务存在即可，不需要依赖它
             task.onlyIf { task.project.tasks.findByName("bootJar") != null }
 
             task.doFirst {
                 // 获取服务端口并转换为Arthas端口（1开头）
-                val servicePort = RemotePluginUtils.getServicePort(task, scriptDir)
+                val servicePort = RemotePluginUtils.getServicePort(task)
                 val arthasPort = "1$servicePort"
 
                 val extra = task.project.extensions.extraProperties
@@ -316,7 +315,7 @@ class RemotePlugin : Plugin<Project> {
                 val remoteBaseDir = if (extra.has("remote.base_dir")) extra.get("remote.base_dir").toString() else ""
                 if (remoteBaseDir.isBlank()) throw GradleException("remote.base_dir 未设置")
                 val serviceName = task.project.name
-                val servicePort = RemotePluginUtils.getServicePort(task, "") // scriptDir is unused
+                val servicePort = RemotePluginUtils.getServicePort(task)
                 val startCmd = RemotePluginUtils.resolveStartCommand(task, remoteBaseDir, serviceName, servicePort)
                 
                 val sshUser = if (extra.has("ssh.user")) extra.get("ssh.user").toString() else ""
@@ -353,7 +352,7 @@ class RemotePlugin : Plugin<Project> {
                 val extra = task.project.extensions.extraProperties
                 val remoteServer = extra.get("ssh.server").toString()
                 val remoteBaseDir = if (extra.has("remote.base_dir")) extra.get("remote.base_dir").toString() else ""
-                val servicePort = RemotePluginUtils.getServicePort(task, "") // scriptDir is unused
+                val servicePort = RemotePluginUtils.getServicePort(task)
                 val logFilePath = RemotePluginUtils.resolveLogFilePath(task, serviceName, remoteBaseDir, servicePort)
 
                 println("找到服务 $serviceName")
