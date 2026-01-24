@@ -318,6 +318,7 @@ process_single_submodule() {
                 # 执行移动操作
                 move_submodule "$OLD_PATH" "$NEW_PATH" "$OLD_URL" "$target_branch" "$OLD_NAME"
 
+                # 从映射中移除已处理的条目（bash 3.x不支持unset特定索引，这里跳过）
                 found=true
             fi
         fi
