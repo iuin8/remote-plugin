@@ -1,5 +1,5 @@
 pluginManagement {
-    def secretsFile = new File(settings.rootDir.parentFile, "support-tools/secrets/gradle/${rootProject.name}/secrets.properties")
+    def secretsFile = new File(settings.rootDir.parentFile, "support-dependencies/configs/secrets/gradle/${rootProject.name}/secrets.properties")
     if (secretsFile.exists()) {
         def props = new Properties()
         secretsFile.withInputStream { props.load(it) }

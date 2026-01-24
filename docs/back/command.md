@@ -64,7 +64,7 @@ publishing {
 ## 3. 安全配置凭证
 将凭证放入 `~/.gradle/gradle.properties`（推荐），避免明文出现在工程。
 
-也支持项目级本地管理：统一放置在 `support-tools/secrets/gradle/<项目名>/secrets.properties`，并通过构建脚本自动加载。
+也支持项目级本地管理：统一放置在 `support-dependencies/configs/secrets/gradle/<项目名>/secrets.properties`，并通过构建脚本自动加载。
 
 示例模板（内容不要入库，放到你自己的私有 secrets 仓库中）：
 
@@ -80,10 +80,10 @@ NEXUS_SNAPSHOT_URL=http://<nexus-host>:8081/repository/maven-snapshots/
 ```
 
 目录规范：
-- 插件工程：`support-tools/secrets/gradle/remote-plugin/secrets.properties`
-- 示例工程：`support-tools/secrets/gradle/consumer-gradle6-sample/secrets.properties`
+- 插件工程：`support-dependencies/configs/secrets/gradle/remote-plugin/secrets.properties`
+- 示例工程：`support-dependencies/configs/secrets/gradle/consumer-gradle6-sample/secrets.properties`
 
-忽略规则：已在 `.gitignore` 中添加 `support-tools/secrets/**`，确保本地秘密不会入库。建议后续将 `support-tools/secrets` 作为私有 Git 仓库，并通过子模块关联进来。
+忽略规则：已在 `.gitignore` 中添加 `support-dependencies/configs/secrets/**`，确保本地秘密不会入库。建议后续将 `support-dependencies/configs/secrets` 作为私有 Git 仓库，并通过子模块关联进来。
 
 也支持使用环境变量（`ALIYUN_USERNAME`、`ALIYUN_PASSWORD`、`ALIYUN_RELEASE_URL`、`ALIYUN_SNAPSHOT_URL`）。
 

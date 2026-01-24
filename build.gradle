@@ -8,7 +8,7 @@ plugins {
 group = 'io.github.iuin8'
 version = '1.4.8'
 
-def secretsFile = file("support-tools/secrets/gradle/${rootProject.name}/secrets.properties")
+def secretsFile = file("support-dependencies/configs/secrets/gradle/${rootProject.name}/secrets.properties")
 if (secretsFile.exists()) {
     def props = new Properties()
     secretsFile.withInputStream { props.load(it) }

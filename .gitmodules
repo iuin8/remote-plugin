@@ -1,4 +1,4 @@
-[submodule "support-tools/secrets"]
-	path = support-tools/secrets
+[submodule "support-dependencies/configs/secrets"]
+	path = support-dependencies/configs/secrets
 	url = git@github.com:iuin8/secrets.git
 	branch = remote-plugin
