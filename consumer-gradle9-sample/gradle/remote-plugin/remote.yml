@@ -9,7 +9,7 @@ common:
       user: "your_username"
       token: "your_api_token"
     remote:
-      base_dir: /path/to/your/app
+      base_dir: /data/remote-plugin/consumer-gradle9-sample
     env:
       JAVA_TOOL_OPTIONS: -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:3${SERVICE_PORT}
     start:
@@ -24,6 +24,7 @@ common:
     service_ports:
       app: 8080
       order-service: 8081
+      marketing-service: 8091
 
 # Environment configurations
 # Each environment can have its own settings
@@ -32,7 +33,7 @@ environments:
   dev:
     extends: base
     ssh:
-      server: dev-server
+      server: fa.dev.company
     jenkins:
       job: "dev-job"
 
@@ -45,6 +46,7 @@ environments:
       job: "test-job"
     service_ports:
       other-service: 8082
+      marketing-service: 8091
 
   # UAT environment configuration
   UAT:

@@ -6,7 +6,7 @@ plugins {
 }
 
 group = 'io.github.iuin8'
-version = '1.4.8'
+version = '2.0.1'
 
 def secretsFile = file("support-dependencies/configs/secrets/gradle/${rootProject.name}/secrets.properties")
 if (secretsFile.exists()) {
@@ -124,6 +124,6 @@ java {
 tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
     kotlinOptions {
         jvmTarget = '1.8'
-        freeCompilerArgs += ['-Xjsr305=strict']
+        freeCompilerArgs += ['-Xjsr305=strict', '-Xskip-metadata-version-check']
     }
 }

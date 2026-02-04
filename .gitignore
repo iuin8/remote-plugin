@@ -3,3 +3,5 @@
 **/.gradle/
 **/gradle/secrets.properties
 support-dependencies/configs/secrets/**
+
+.idea

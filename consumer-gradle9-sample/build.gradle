@@ -1,0 +1,9 @@
+plugins {
+    id 'io.github.iuin8.remote'
+}
+
+allprojects {
+    repositories {
+        mavenCentral()
+    }
+}

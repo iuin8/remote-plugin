@@ -1,0 +1,10 @@
+plugins {
+    id 'java'
+}
+
+// 模拟 bootJar 任务，因为插件会检查这个任务是否存在
+tasks.register('bootJar') {
+    doLast {
+        println "Mock bootJar execution"
+    }
+}

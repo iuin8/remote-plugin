@@ -3,236 +3,228 @@ package io.github.iuin8.remote
 import java.io.File
 
 /**
- * 表示解析后的配置结构，包含通用配置和环境配置
+ * Simplified configuration structure
  */
 data class ParsedConfig(
-    val commonConfigs: Map<String, Map<String, String>> = emptyMap(),
-    val envConfigs: Map<String, Map<String, String>> = emptyMap(),
-    val servicePorts: Map<String, String> = emptyMap()
+    val common: Map<String, Any> = emptyMap(),
+    val environments: Map<String, Any> = emptyMap(),
+    val servicePorts: Map<String, Any> = emptyMap()
 )
 
-/**
- * 表示扫描后的概要配置，用于任务注册
- */
 data class ScannedConfig(
     val environments: Set<String> = emptySet(),
     val configuredServices: Set<String> = emptySet()
 )
 
 /**
- * 配置合并工具类
+ * Unified configuration utility with clean, high-cohesion logic.
  */
 object ConfigMerger {
-    
+
     class ConfigException(message: String) : Exception(message)
-    
+
     /**
-     * 解析YAML配置文件，支持common和environments结构
+     * Parses a simple YAML file into a structured ParsedConfig object.
+     * Logic is centered around building a general data tree first.
      */
-    fun parseSimpleYamlWithBase(file: File): ParsedConfig {
-        val commonConfigs = mutableMapOf<String, MutableMap<String, String>>()
-        val envConfigs = mutableMapOf<String, MutableMap<String, String>>()
-        val servicePortsMap = mutableMapOf<String, String>()
-        
-        var currentSection: String? = null // "common", "environments" or "service_ports"
-        var currentBlock: String? = null   // e.g., "base" or "dev"
-        var blockIndent: Int = -1          // Indentation of the current top-level block
-        
-        // 用于跟踪每行的缩进和对应的键路径
-        val pathStack = mutableListOf<Pair<Int, String>>()
-        
+    fun parseSimpleYaml(file: File): ParsedConfig {
+        val root = mutableMapOf<String, Any>()
+        val stack = mutableListOf<MutableMap<String, Any>>()
+        stack.add(root)
+        val indents = mutableListOf(-1)
+
         file.forEachLine { raw ->
             val indent = raw.takeWhile { it == ' ' }.length
             val line = raw.trim()
-            
             if (line.isEmpty() || line.startsWith("#")) return@forEachLine
-            
-            if (indent == 0 && line == "common:") {
-                currentSection = "common"
-                currentBlock = null
-                blockIndent = -1
-                pathStack.clear()
-                return@forEachLine
-            }
-            if (indent == 0 && line == "environments:") {
-                currentSection = "environments"
-                currentBlock = null
-                blockIndent = -1
-                pathStack.clear()
+
+            // Handling lists (like in the environments section)
+            if (line.startsWith("-") && stack.isNotEmpty()) {
+                val value = line.substring(1).trim()
+                val current = stack.last()
+                @Suppress("UNCHECKED_CAST")
+                val list = current.getOrPut("__list__") { mutableListOf<String>() } as MutableList<String>
+                list.add(value)
                 return@forEachLine
             }
 
-            
-            // 调整 pathStack 到当前缩进级别
-            while (pathStack.isNotEmpty() && pathStack.last().first >= indent) {
-                pathStack.removeAt(pathStack.size - 1)
+            // Adjust stack based on indentation
+            while (indent <= indents.last() && indents.size > 1) {
+                stack.removeAt(stack.size - 1)
+                indents.removeAt(indents.size - 1)
             }
-            
+
             if (line.endsWith(":")) {
                 val key = line.substringBeforeLast(":").trim()
-                if (currentSection != null && (currentBlock == null || indent <= blockIndent) && pathStack.isEmpty()) {
-                    currentBlock = key
-                    blockIndent = indent
-                } else {
-                    pathStack.add(indent to key)
-                }
+                val newMap = mutableMapOf<String, Any>()
+                stack.last()[key] = newMap
+                stack.add(newMap)
+                indents.add(indent)
             } else if (line.contains(":")) {
                 val parts = line.split(":", limit = 2)
                 val key = parts[0].trim()
                 var value = parts[1].trim()
-                
                 if ((value.startsWith("\"") && value.endsWith("\"")) || (value.startsWith("'") && value.endsWith("'"))) {
                     value = value.substring(1, value.length - 1)
                 }
-                
-                if (currentSection != null && currentBlock != null) {
-                    val fullKey = (pathStack.map { it.second } + key).joinToString(".")
-                    val targetMap = if (currentSection == "common") {
-                        commonConfigs.getOrPut(currentBlock!!) { mutableMapOf() }
-                    } else {
-                        envConfigs.getOrPut(currentBlock!!) { mutableMapOf() }
-                    }
-                    targetMap[fullKey] = value
-                }
+                stack.last()[key] = value
             }
         }
+
+        @Suppress("UNCHECKED_CAST")
+        val environmentsRaw = root["environments"] as? Map<String, Any> ?: emptyMap()
+        @Suppress("UNCHECKED_CAST")
+        val environmentsList = environmentsRaw["__list__"] as? List<String> ?: emptyList()
         
-        return ParsedConfig(commonConfigs, envConfigs, servicePortsMap)
-    }
-
-
-
-    /**
-     * 合并多个配置文件并获取环境配置
-     * 后面的文件优先级更高
-     */
-    fun getMergedConfigForEnvironment(files: List<File>, environment: String, project: org.gradle.api.Project? = null): Map<String, String> {
-        val existingFiles = files.filter { it.exists() }
-        if (existingFiles.isEmpty()) throw ConfigException("配置文件不存在")
-
-        // 逐个解析并简单合并 ParsedConfig
-        var finalParsedConfig = ParsedConfig()
-        existingFiles.forEach { file ->
-            val p = parseSimpleYamlWithBase(file)
-            finalParsedConfig = ParsedConfig(
-                commonConfigs = deepMerge(finalParsedConfig.commonConfigs, p.commonConfigs),
-                envConfigs = deepMerge(finalParsedConfig.envConfigs, p.envConfigs),
-                servicePorts = finalParsedConfig.servicePorts + p.servicePorts
-            )
+        // Ensure all environment names in the list are treated as keys in the map
+        val finalEnvironments = environmentsRaw.toMutableMap()
+        finalEnvironments.remove("__list__")
+        environmentsList.forEach { env ->
+            finalEnvironments.putIfAbsent(env, emptyMap<String, Any>())
         }
-        
-        val envConfig = finalParsedConfig.envConfigs[environment] ?: emptyMap()
-        
-        val extends = envConfig["extends"]
-        val baseConfig = if (extends != null) {
-            finalParsedConfig.commonConfigs[extends] ?: throw ConfigException("环境${environment}试图继承不存在的配置块${extends}")
-        } else {
-            emptyMap()
-        }
-        
-        val mergedConfig = baseConfig.toMutableMap()
-        
-        // 合并环境特有配置
-        mergedConfig.putAll(envConfig)
 
-        // 如果提供了 project，则解析所有值中的占位符
-        if (project != null) {
-            mergedConfig.keys.forEach { key ->
-                mergedConfig[key] = RemotePluginUtils.resolvePlaceholders(mergedConfig[key]!!, project)
-            }
-        }
-        
-        return mergedConfig
+        @Suppress("UNCHECKED_CAST")
+        return ParsedConfig(
+            common = root["common"] as? Map<String, Any> ?: emptyMap(),
+            environments = finalEnvironments,
+            servicePorts = root["service_ports"] as? Map<String, Any> ?: emptyMap()
+        )
     }
 
     /**
-     * 深度合并 Map<String, Map<String, String>>
-     */
-    private fun deepMerge(base: Map<String, Map<String, String>>, override: Map<String, Map<String, String>>): Map<String, Map<String, String>> {
-        val result = base.toMutableMap()
-        override.forEach { (key, map) ->
-            val existing = result[key]
-            if (existing == null) {
-                result[key] = map
-            } else {
-                result[key] = existing + map
-            }
-        }
-        return result
-    }
-
-    /**
-     * 扫描项目中的所有配置文件并提取概要信息
+     * Scans for configuration and returns summary info.
      */
     fun scanConfig(project: org.gradle.api.Project): ScannedConfig {
         val environments = mutableSetOf<String>()
         val configuredServices = mutableSetOf<String>()
         
-        val scriptDirFile = File(project.rootDir, "gradle/remote-plugin")
-        val remoteYmlFile = File(scriptDirFile, "remote.yml")
-        val remoteLocalYmlFile = File(scriptDirFile, "remote-local.yml")
-        val ymlFiles = listOf(remoteYmlFile, remoteLocalYmlFile).filter { it.exists() }
-
-        ymlFiles.forEach { file ->
-            try {
-                val parsedConfig = parseSimpleYamlWithBase(file)
-                environments.addAll(parsedConfig.envConfigs.keys)
-                
-                // 从所有配置块中提取以 service_ports. 开头的服务定义
-                parsedConfig.commonConfigs.values.forEach { map ->
-                    map.keys.filter { it.startsWith("service_ports.") }.forEach {
-                        configuredServices.add(it.substringAfter("service_ports."))
+        val scriptDir = File(project.rootDir, "gradle/remote-plugin")
+        listOf("remote.yml", "remote-local.yml")
+            .map { File(scriptDir, it) }
+            .filter { it.exists() }
+            .forEach { file ->
+                try {
+                    val config = parseSimpleYaml(file)
+                    environments.addAll(config.environments.keys)
+                    
+                    // Extract services from all possible locations
+                    configuredServices.addAll(extractServices(config.servicePorts))
+                    configuredServices.addAll(extractServices(config.common))
+                    config.environments.values.forEach { 
+                        if (it is Map<*, *>) {
+                            @Suppress("UNCHECKED_CAST")
+                            configuredServices.addAll(extractServices(it as Map<String, Any>))
+                        }
                     }
-                }
-                parsedConfig.envConfigs.values.forEach { map ->
-                    map.keys.filter { it.startsWith("service_ports.") }.forEach {
-                        configuredServices.add(it.substringAfter("service_ports."))
-                    }
-                }
-            } catch (e: Exception) {
-                // 静默失败
+                } catch (e: Exception) {}
             }
-        }
+        
         return ScannedConfig(environments, configuredServices)
     }
 
-    /**
-     * 加载环境配置并应用到项目属性
-     */
-    fun envLoad(project: org.gradle.api.Project, profile: String): Boolean {
-        val extra = project.extensions.extraProperties
-        
-        // 如果已经加载过当前环境，则跳过
-        if (extra.has("remote_loaded_profile") && extra.get("remote_loaded_profile") == profile) {
-            return true
-        }
-
-        val scriptDirFile = File(project.rootDir, "gradle/remote-plugin")
-        val remoteYmlFile = File(scriptDirFile, "remote.yml")
-        val remoteLocalYmlFile = File(scriptDirFile, "remote-local.yml")
-        
-        if (remoteYmlFile.exists()) {
-            try {
-                val files = listOf(remoteYmlFile, remoteLocalYmlFile)
-                val mergedConfig = getMergedConfigForEnvironment(files, profile, project)
-                
-                mergedConfig.entries.forEach { (key, value) ->
-                    extra.set(key, value)
-                }
-                
-                extra.set("remote_loaded_profile", profile)
-                
-                // SshSetupManager 相关的逻辑 (基于合并后的配置)
-                val autoKeygen = if (extra.has("ssh.setup.auto.keygen")) {
-                    extra.get("ssh.setup.auto.keygen").toString().toBoolean()
-                } else false
-                extra.set("ssh.setup.auto.keygen", autoKeygen)
-                
-                return true
-            } catch (e: Exception) {
-                // 错误显示可以留给 debug
+    private fun extractServices(map: Map<String, Any>): Set<String> {
+        val services = mutableSetOf<String>()
+        flattenMap(map).keys.forEach { key ->
+            if (key.startsWith("service_ports.")) {
+                services.add(key.substringAfter("service_ports."))
+            } else if (key.contains(".service_ports.")) {
+                services.add(key.substringAfter(".service_ports."))
             }
         }
-        return false
+        return services
+    }
+
+    /**
+     * Gets a flattened map of all properties for a specific environment.
+     */
+    fun getEnvProperties(project: org.gradle.api.Project, profile: String): Map<String, Any> {
+        val scriptDir = File(project.rootDir, "gradle/remote-plugin")
+        val files = listOf("remote.yml", "remote-local.yml").map { File(scriptDir, it) }.filter { it.exists() }
+        
+        if (files.isEmpty()) return emptyMap()
+
+        // Merge all files into one ParsedConfig
+        var merged = ParsedConfig()
+        files.forEach { file ->
+            val p = parseSimpleYaml(file)
+            merged = ParsedConfig(
+                common = deepMerge(merged.common, p.common),
+                environments = deepMerge(merged.environments, p.environments),
+                servicePorts = deepMerge(merged.servicePorts, p.servicePorts)
+            )
+        }
+
+        @Suppress("UNCHECKED_CAST")
+        val envConfig = merged.environments[profile] as? Map<String, Any> ?: emptyMap()
+        val extends = envConfig["extends"]?.toString()
+        
+        @Suppress("UNCHECKED_CAST")
+        val baseConfig = if (extends != null) merged.common[extends] as? Map<String, Any> ?: emptyMap() else emptyMap()
+        
+        val finalMap = mutableMapOf<String, Any>()
+        
+        // 1. Base (common.extends)
+        finalMap.putAll(flattenMap(baseConfig))
+        // 2. Environment specific
+        finalMap.putAll(flattenMap(envConfig))
+        
+        // 3. Remap all nested service_ports to top-level "service_ports."
+        val allFlattened = mutableMapOf<String, Any>()
+        allFlattened.putAll(flattenMap(merged.common))
+        allFlattened.putAll(flattenMap(merged.environments))
+        allFlattened.putAll(flattenMap(merged.servicePorts))
+        
+        allFlattened.forEach { (k, v) ->
+            if (k == "service_ports" && v is Map<*, *>) {
+                // Should not happen with flattenMap, but for safety
+            } else if (k.startsWith("service_ports.")) {
+                finalMap[k] = v
+            } else if (k.contains(".service_ports.")) {
+                val serviceName = k.substringAfter(".service_ports.")
+                finalMap["service_ports.$serviceName"] = v
+            }
+        }
+
+        // Apply placeholders
+        finalMap.keys.forEach { key ->
+            val value = finalMap[key]
+            if (value is String) {
+                finalMap[key] = RemotePluginUtils.resolvePlaceholders(value, project)
+            }
+        }
+        
+        // Logical overrides
+        val autoKeygen = finalMap["ssh.setup.auto.keygen"]?.toString()?.toBoolean() ?: false
+        finalMap["ssh.setup.auto.keygen"] = autoKeygen
+        
+        return finalMap
+    }
+
+    private fun flattenMap(map: Map<String, Any>, prefix: String = ""): Map<String, Any> {
+        val result = mutableMapOf<String, Any>()
+        for ((key, value) in map) {
+            val fullKey = if (prefix.isEmpty()) key else "$prefix.$key"
+            if (value is Map<*, *>) {
+                @Suppress("UNCHECKED_CAST")
+                result.putAll(flattenMap(value as Map<String, Any>, fullKey))
+            } else {
+                result[fullKey] = value
+            }
+        }
+        return result
+    }
+
+    private fun deepMerge(base: Map<String, Any>, override: Map<String, Any>): Map<String, Any> {
+        val result = base.toMutableMap()
+        for ((key, value) in override) {
+            val existing = result[key]
+            if (existing is Map<*, *> && value is Map<*, *>) {
+                @Suppress("UNCHECKED_CAST")
+                result[key] = deepMerge(existing as Map<String, Any>, value as Map<String, Any>)
+            } else {
+                result[key] = value
+            }
+        }
+        return result
     }
 }

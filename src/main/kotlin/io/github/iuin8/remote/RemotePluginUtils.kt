@@ -25,14 +25,14 @@ object RemotePluginUtils {
      * 判断是否为 Windows 系统
      */
     fun isWindows(): Boolean {
-        return System.getProperty("os.name").toLowerCase().contains("windows")
+        return System.getProperty("os.name").lowercase().contains("windows")
     }
 
     /**
      * 判断是否为 Mac 系统
      */
     fun isMac(): Boolean {
-        return System.getProperty("os.name").toLowerCase().contains("mac")
+        return System.getProperty("os.name").lowercase().contains("mac")
     }
 
     /**
@@ -102,16 +102,13 @@ object RemotePluginUtils {
             .replace("${'$'}SERVICE_NAME", serviceName)
     }
     
-    // parseSimpleYaml 已移除，请使用 ConfigMerger.parseSimpleYamlWithBase
 
-    fun getJenkinsConfig(task: Task, @Suppress("UNUSED_PARAMETER") profile: String): Map<String, String?> {
-        val extra = task.project.extensions.extraProperties
-        val serviceName = task.project.name
-        
-        val url = if (extra.has("jenkins.url")) extra.get("jenkins.url").toString() else null
-        val user = if (extra.has("jenkins.user")) extra.get("jenkins.user").toString() else null
-        val token = if (extra.has("jenkins.token")) extra.get("jenkins.token").toString() else null
-        var jobPath = if (extra.has("jenkins.job")) extra.get("jenkins.job").toString() else null
+
+    fun getJenkinsConfig(extra: Map<String, Any?>, serviceName: String): Map<String, String?> {
+        val url = extra["jenkins.url"]?.toString()
+        val user = extra["jenkins.user"]?.toString()
+        val token = extra["jenkins.token"]?.toString()
+        var jobPath = extra["jenkins.job"]?.toString()
         
         if (jobPath != null) {
             jobPath = replacePlaceholders(jobPath, serviceName)
@@ -128,25 +125,29 @@ object RemotePluginUtils {
         )
     }
     
-    fun resolveLogFilePath(task: Task, serviceName: String, remoteBaseDir: String, servicePort: String): String {
-        val extra = task.project.extensions.extraProperties
-        val pattern = if (extra.has("log.filePattern")) extra.get("log.filePattern").toString() else null
+    fun resolveLogFilePath(extra: Map<String, Any?>, serviceName: String, remoteBaseDir: String, servicePort: String): String {
+        val pattern = extra["log.filePattern"]?.toString()
         if (pattern != null) {
             return replacePlaceholders(pattern, serviceName, remoteBaseDir, servicePort)
         }
         return "$remoteBaseDir/../logs/$serviceName.log"
     }
     
-    fun resolveStartCommand(task: Task, remoteBaseDir: String, serviceName: String, servicePort: String): String {
-        val extra = task.project.extensions.extraProperties
-        var cmd = if (extra.has("start.command")) extra.get("start.command").toString() else "$remoteBaseDir/$serviceName/$serviceName-start.sh"
+    fun resolveLogCommand(extra: Map<String, Any?>, serviceName: String, remoteBaseDir: String, servicePort: String, logFilePath: String): String {
+        val command = extra["log.command"]?.toString() ?: "tail -fn10000 ${'$'}{log.file}"
+        return replacePlaceholders(command, serviceName, remoteBaseDir, servicePort)
+            .replace("${'$'}{log.file}", logFilePath)
+            .replace("${'$'}log.file", logFilePath)
+    }
+    
+    fun resolveStartCommand(extra: Map<String, Any?>, remoteBaseDir: String, serviceName: String, servicePort: String): String {
+        var cmd = extra["start.command"]?.toString() ?: "$remoteBaseDir/$serviceName/$serviceName-start.sh"
         return replacePlaceholders(cmd, serviceName, remoteBaseDir, servicePort)
     }
 
-    fun resolveStartEnv(task: Task, remoteBaseDir: String, serviceName: String, servicePort: String): Map<String, String> {
-        val extra = task.project.extensions.extraProperties
+    fun resolveStartEnv(extra: Map<String, Any?>, remoteBaseDir: String, serviceName: String, servicePort: String): Map<String, String> {
         val result = mutableMapOf<String, String>()
-        extra.properties.forEach { (k, v) ->
+        extra.forEach { (k, v) ->
             if (k.startsWith("env.")) {
                 val key = k.substring("env.".length)
                 val value = replacePlaceholders(v.toString(), serviceName, remoteBaseDir, servicePort)
@@ -210,10 +211,8 @@ object RemotePluginUtils {
         task.onlyIf { task.project.tasks.findByName("bootJar") != null }
     }
 
-    fun getServicePort(task: Task): String {
-        val extra = task.project.extensions.extraProperties
-        val serviceName = task.project.name
-        val port = if (extra.has("service_ports.$serviceName")) extra.get("service_ports.$serviceName").toString() else null
+    fun getServicePort(extra: Map<String, Any?>, serviceName: String): String {
+        val port = extra["service_ports.$serviceName"]?.toString()
         
         if (port == null) {
             val msg = """
@@ -230,30 +229,20 @@ service_ports:
     /**
      * 检查用户确认，用于生产环境任务安全防护
      */
-    fun checkConfirmation(task: Task, profile: String) {
-        val extra = task.project.extensions.extraProperties
-        
+    fun checkConfirmation(
+        profile: String,
+        needConfirm: Boolean,
+        hasConfirmProperty: Boolean,
+        confirmPropertyValue: String?
+    ) {
         // 1. 检查命令行属性绕过 -Pstart.need_confirm=false
-        if (task.project.hasProperty("start.need_confirm")) {
-            val prop = task.project.property("start.need_confirm").toString()
-            if (prop == "false") return
-        }
-        
-        // 2. 获取配置项 need_confirm (从 remote.yml 加载)
-        var needConfirm: Boolean? = if (extra.has("start.need_confirm")) {
-            extra.get("start.need_confirm").toString().toBoolean()
-        } else {
-            null
-        }
-        
-        // 3. 智能默认值：如果未显式配置，且环境名包含 prod，则默认为 true
-        if (needConfirm == null) {
-            needConfirm = profile.toLowerCase().contains("prod")
+        if (hasConfirmProperty && confirmPropertyValue == "false") {
+            return
         }
         
         if (!needConfirm) return
 
-        // 4. 执行确认逻辑
+        // 2. 执行确认逻辑
         println("\n" + "=".repeat(60))
         println("⚠️  警告: 检测到当前环境为 '$profile'")
         println("   根据配置或环境识别，此任务需要用户确认。")

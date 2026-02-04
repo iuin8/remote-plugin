@@ -1,6 +1,5 @@
 package io.github.iuin8.remote
 
-import org.gradle.api.Task
 import org.gradle.api.logging.Logging
 import java.net.URI
 
@@ -11,164 +10,156 @@ object JenkinsTask {
      * Jenkins构建任务
      * 使用 jenkins-client 库实现
      */
-    fun jenkinsBuildTask(task: Task, platform: String) {
-        task.doFirst {
-            // 确保环境配置已加载 (已由 whenReady 处理)
+    fun jenkinsBuildTask(extra: Map<String, Any?>, serviceName: String, platform: String) {
+        val config = RemotePluginUtils.getJenkinsConfig(extra, serviceName)
+        val url = config["url"]
+        val user = config["user"]
+        val token = config["token"]
+        val jobName = config["job"]
+
+        if (url == null || user == null || token == null || jobName == null) {
+            logger.debug("[jenkins] Jenkins配置不完整，跳过任务。")
+            return
+        }
+
+        println("[jenkins] 触发构建: $jobName (环境: $platform)")
+
+        val jenkinsServer = try {
+            com.offbytwo.jenkins.JenkinsServer(URI(url), user, token)
+        } catch (e: Exception) {
+            println("[jenkins] 连接失败: ${e.message}")
+            throw e
+        }
+
+        // 尝试获取 Job
+        try {
+            // 递归查找嵌套Job
+            val targetJob = findJobRecursive(jenkinsServer, jobName)
             
-            val config = RemotePluginUtils.getJenkinsConfig(task, platform)
-            val url = config["url"]
-            val user = config["user"]
-            val token = config["token"]
-            val jobName = config["job"]
-
-            if (url == null || user == null || token == null || jobName == null) {
-                logger.debug("[jenkins] Jenkins配置不完整，跳过任务。")
-                return@doFirst
-            }
-
-            println("[jenkins] 触发构建: $jobName (环境: $platform)")
-
-            val jenkinsServer = try {
-                com.offbytwo.jenkins.JenkinsServer(URI(url), user, token)
-            } catch (e: Exception) {
-                println("[jenkins] 连接失败: ${e.message}")
-                throw e
-            }
-
-            // 尝试获取 Job
-            try {
-                // 递归查找嵌套Job
-                val targetJob = findJobRecursive(jenkinsServer, jobName)
+            if (targetJob != null) {
+                logger.debug("[jenkins] 正在触发构建...")
+                // true表示请求crumb，防止403
+                val queueRef = targetJob.build(true) 
                 
-                if (targetJob != null) {
-                    logger.debug("[jenkins] 正在触发构建...")
-                    // true表示请求crumb，防止403
-                    val queueRef = targetJob.build(true) 
-                    
-                    println("[jenkins] 已加入队列: ${queueRef.queueItemUrlPart}")
-                    
-                    // 等待构建开始并获取构建号
-                    logger.debug("[jenkins] 等待构建开始...")
-                    var build: com.offbytwo.jenkins.model.Build? = null
-                    
-                    // 轮询队列项 (30秒超时)
-                    var maxWait = 30
-                    while (maxWait > 0) {
-                        val queueItem = jenkinsServer.getQueueItem(queueRef)
-                        if (queueItem == null) {
-                            Thread.sleep(1000)
-                            maxWait--
-                            continue
-                        }
-                        
-                        if (queueItem.executable != null) {
-                            val buildInfo = queueItem.executable
-                            println("[jenkins] 构建已开始，构建号: #${buildInfo.number}")
-                            // 获取Build对象以便查询详情
-                            build = targetJob.details().getBuildByNumber(buildInfo.number.toInt())
-                            break
-                        }
-                        
-                        if (queueItem.isCancelled) {
-                             println("[jenkins] 构建在队列中被取消")
-                             return@doFirst
-                        }
-                        
+                println("[jenkins] 已加入队列: ${queueRef.queueItemUrlPart}")
+                
+                // 等待构建开始并获取构建号
+                logger.debug("[jenkins] 等待构建开始...")
+                var build: com.offbytwo.jenkins.model.Build? = null
+                
+                // 轮询队列项 (30秒超时)
+                var maxWait = 30
+                while (maxWait > 0) {
+                    val queueItem = jenkinsServer.getQueueItem(queueRef)
+                    if (queueItem == null) {
                         Thread.sleep(1000)
                         maxWait--
+                        continue
                     }
                     
-                    if (build != null) {
-                         // 获取构建信息
-                         logger.debug("[jenkins] 获取构建信息...")
-                         
-                         var details = build.details()
-                         var retryCount = 0
-                         val maxRetries = 40 // 3秒一次，共2分钟
-                         
-                         while (retryCount < maxRetries) {
-                             // 1. 如果已经有提交记录，直接退出循环
-                             if (details.changeSet != null && details.changeSet.items.isNotEmpty()) {
-                                 break
-                             }
-                             
-                             // 2. 如果任务已经结束（成功、失败或取消），且还没有提交记录，直接退出
-                             if (!details.isBuilding) {
-                                 println("[jenkins] 构建已结束，共获取到 0 条提交记录")
-                                 break
-                             }
-                             
-                             // 3. 检查是否已经完成了 SCM Checkout (通过检查 Action 中是否包含 GitRevision)
-                             if (hasScmAction(details)) {
-                                 // 已检出但没记录，说明本次构建确实没有新的提交，无需再等
-                                 println("[jenkins] SCM 检出已完成，本次无新增提交记录")
-                                 break
-                             }
-                             
-                             println("[jenkins] 提交记录为空，正在等待 SCM Checkout... (${retryCount + 1}/$maxRetries)")
-                             Thread.sleep(3000)
-                             details = build.details()
-                             retryCount++
-                         }
-                         
-                         printBuildDetails(details)
-                    } else {
-                        println("[jenkins] 警告: 超时未获取到构建号，您可以稍后在Jenkins查看。")
+                    if (queueItem.executable != null) {
+                        val buildInfo = queueItem.executable
+                        println("[jenkins] 构建已开始，构建号: #${buildInfo.number}")
+                        // 获取Build对象以便查询详情
+                        build = targetJob.details().getBuildByNumber(buildInfo.number.toInt())
+                        break
                     }
-
-                } else {
-                    println("[jenkins] 错误: 无法找到Job '$jobName'")
+                    
+                    if (queueItem.isCancelled) {
+                         println("[jenkins] 构建在队列中被取消")
+                         return
+                    }
+                    
+                    Thread.sleep(1000)
+                    maxWait--
                 }
                 
-            } catch (e: Exception) {
-                println("[jenkins] 执行异常: ${e.message}")
+                if (build != null) {
+                     // 获取构建信息
+                     logger.debug("[jenkins] 获取构建信息...")
+                     
+                     var details = build.details()
+                     var retryCount = 0
+                     val maxRetries = 40 // 3秒一次，共2分钟
+                     
+                     while (retryCount < maxRetries) {
+                         // 1. 如果已经有提交记录，直接退出循环
+                         if (details.changeSet != null && details.changeSet.items.isNotEmpty()) {
+                             break
+                         }
+                         
+                         // 2. 如果任务已经结束（成功、失败或取消），且还没有提交记录，直接退出
+                         if (!details.isBuilding) {
+                             println("[jenkins] 构建已结束，共获取到 0 条提交记录")
+                             break
+                         }
+                         
+                         // 3. 检查是否已经完成了 SCM Checkout (通过检查 Action 中是否包含 GitRevision)
+                         if (hasScmAction(details)) {
+                             // 已检出但没记录，说明本次构建确实没有新的提交，无需再等
+                             println("[jenkins] SCM 检出已完成，本次无新增提交记录")
+                             break
+                         }
+                         
+                         println("[jenkins] 提交记录为空，正在等待 SCM Checkout... (${retryCount + 1}/$maxRetries)")
+                         Thread.sleep(3000)
+                         details = build.details()
+                         retryCount++
+                     }
+                     
+                     printBuildDetails(details)
+                } else {
+                    println("[jenkins] 警告: 超时未获取到构建号，您可以稍后在Jenkins查看。")
+                }
+
+            } else {
+                println("[jenkins] 错误: 无法找到Job '$jobName'")
             }
+            
+        } catch (e: Exception) {
+            println("[jenkins] 执行异常: ${e.message}")
         }
     }
 
     /**
      * 查看 Jenkins 最后一次构建信息
      */
-    fun jenkinsLastBuildInfoTask(task: Task, platform: String) {
-        task.doFirst {
-            // 确保环境配置已加载 (已由 whenReady 处理)
-            
-            val config = RemotePluginUtils.getJenkinsConfig(task, platform)
-            val url = config["url"]
-            val user = config["user"]
-            val token = config["token"]
-            val jobName = config["job"]
+    fun jenkinsLastBuildInfoTask(extra: Map<String, Any?>, serviceName: String, platform: String) {
+        val config = RemotePluginUtils.getJenkinsConfig(extra, serviceName)
+        val url = config["url"]
+        val user = config["user"]
+        val token = config["token"]
+        val jobName = config["job"]
 
-            if (url == null || user == null || token == null || jobName == null) {
-                logger.debug("[jenkins] Jenkins配置不完整，跳过任务。")
-                return@doFirst
-            }
+        if (url == null || user == null || token == null || jobName == null) {
+            logger.debug("[jenkins] Jenkins配置不完整，跳过任务。")
+            return
+        }
 
-            println("[jenkins] 正在获取最后一次构建信息: $jobName")
+        println("[jenkins] 正在获取最后一次构建信息: $jobName")
 
-            val jenkinsServer = try {
-                com.offbytwo.jenkins.JenkinsServer(URI(url), user, token)
-            } catch (e: Exception) {
-                println("[jenkins] 连接失败: ${e.message}")
-                throw e
-            }
+        val jenkinsServer = try {
+            com.offbytwo.jenkins.JenkinsServer(URI(url), user, token)
+        } catch (e: Exception) {
+            println("[jenkins] 连接失败: ${e.message}")
+            throw e
+        }
 
-            try {
-                val targetJob = findJobRecursive(jenkinsServer, jobName)
-                if (targetJob != null) {
-                    val jobDetails = targetJob.details()
-                    val lastBuild = jobDetails.lastBuild
-                    if (lastBuild != null) {
-                        printBuildDetails(lastBuild.details())
-                    } else {
-                        println("[jenkins] 任务 '$jobName' 尚无构建记录")
-                    }
+        try {
+            val targetJob = findJobRecursive(jenkinsServer, jobName)
+            if (targetJob != null) {
+                val jobDetails = targetJob.details()
+                val lastBuild = jobDetails.lastBuild
+                if (lastBuild != null) {
+                    printBuildDetails(lastBuild.details())
                 } else {
-                    println("[jenkins] 错误: 无法找到Job '$jobName'")
+                    println("[jenkins] 任务 '$jobName' 尚无构建记录")
                 }
-            } catch (e: Exception) {
-                println("[jenkins] 获取信息异常: ${e.message}")
+            } else {
+                println("[jenkins] 错误: 无法找到Job '$jobName'")
             }
+        } catch (e: Exception) {
+            println("[jenkins] 获取信息异常: ${e.message}")
         }
     }
     

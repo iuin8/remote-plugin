@@ -13,12 +13,11 @@ pluginManagement {
                 password = (settings.hasProperty('ALIYUN_PASSWORD') ? settings.ALIYUN_PASSWORD : System.getenv('ALIYUN_PASSWORD'))
             }
         }
+        mavenCentral()
         gradlePluginPortal()
     }
     includeBuild('..')
 }
 
-rootProject.name = 'consumer-gradle6-sample'
-include 'app'
-include 'other-service'
-include 'order-service'
+rootProject.name = 'consumer-gradle9-sample'
+include 'services:marketing-service'
