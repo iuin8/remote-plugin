@@ -42,7 +42,7 @@ class RemotePlugin : Plugin<Project> {
         sub.tasks.register("${profile}_publish", RemotePublishTask::class.java) { t ->
             configureBaseTask(t, groupName, profile, sub)
             t.dependsOn(preCheck)
-            RemotePluginUtils.configureTaskToDependOnBootJar(t)
+            RemotePluginUtils.configureTaskToDependOnBootJar(sub, t)
         }
 
         // 3. Operational Tasks
@@ -71,11 +71,10 @@ class RemotePlugin : Plugin<Project> {
         t.profile.set(profile)
         t.serviceName.set(sub.name)
         t.rootDir.set(sub.rootDir)
+        t.projectDir.set(sub.projectDir)
         
-        // Lazy property resolution for environment configuration
-        @Suppress("UNCHECKED_CAST")
-        t.extraProperties.set(sub.provider {
-            ConfigMerger.getEnvProperties(sub.rootProject, profile)
-        } as org.gradle.api.provider.Provider<Map<String, Any>>)
+        // Capture properties at configuration time to avoid execution-time Project access
+        val envProperties = ConfigMerger.getEnvProperties(sub.rootProject, profile)
+        t.extraProperties.set(envProperties)
     }
 }

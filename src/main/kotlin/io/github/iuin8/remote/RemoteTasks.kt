@@ -31,6 +31,9 @@ abstract class BaseRemoteTask @Inject constructor(
     abstract val rootDir: Property<File>
 
     @get:Input
+    abstract val projectDir: Property<File>
+
+    @get:Input
     @get:Optional
     abstract val sensitive: Property<Boolean>
 
@@ -50,7 +53,7 @@ abstract class BaseRemoteTask @Inject constructor(
             "REMOTE_SERVER" to (extra["ssh.server"]?.toString() ?: ""),
             "REMOTE_BASE_DIR" to (extra["remote.base_dir"]?.toString() ?: ""),
             "SERVICE_NAME" to serviceName.get(),
-            "SERVICE_DIR" to File(rootDir.get(), serviceName.get()).absolutePath
+            "SERVICE_DIR" to projectDir.get().absolutePath
         )
         if (servicePort != null) {
             envMap["SERVICE_PORT"] = servicePort
@@ -92,7 +95,7 @@ abstract class RemotePublishTask @Inject constructor(
         
         val servicePort = RemotePluginUtils.getServicePort(extra, sName)
         
-        val serviceDir = File(rDir, sName)
+        val serviceDir = projectDir.get()
         val libsDir = File(serviceDir, "build/libs")
         if (!libsDir.exists()) throw GradleException("未找到目录: ${libsDir.absolutePath}")
         
@@ -116,7 +119,7 @@ abstract class RemotePublishTask @Inject constructor(
             println("[cmd] ssh $remoteServer bash -lc 'chown $sshUser:$sshUser $chownTarget'")
             execOperations.exec { spec ->
                 spec.environment("RP_PROJECT_ROOT_PATH", rDir.absolutePath)
-                spec.commandLine("ssh", remoteServer, "bash -lc 'chown $sshUser:$sshUser $chownTarget'")
+                spec.commandLine("ssh", "-tt", "-o", "SendEnv=TERM", "-o", "RequestTTY=force", remoteServer, "bash -lc 'chown $sshUser:$sshUser $chownTarget'")
             }
         }
 
@@ -126,7 +129,7 @@ abstract class RemotePublishTask @Inject constructor(
         println("[cmd] ssh $remoteServer $remoteCmd")
         execOperations.exec { spec ->
             applyCommonEnv(spec, servicePort)
-            spec.commandLine("ssh", remoteServer, remoteCmd)
+            spec.commandLine("ssh", "-tt", "-o", "SendEnv=TERM", "-o", "RequestTTY=force", remoteServer, remoteCmd)
         }
         
         println("[publish] $sName 发布脚本执行完成")
@@ -221,7 +224,7 @@ abstract class RemoteLogTask @Inject constructor(
             spec.environment("RP_PROJECT_ROOT_PATH", rootDir.get().absolutePath)
             spec.environment("TERM", "xterm")
             spec.isIgnoreExitValue = true
-            spec.commandLine("ssh", remoteServer, RemotePluginUtils.buildRemoteTailCmd(logFilePath))
+            spec.commandLine("ssh", "-tt", "-o", "SendEnv=TERM", "-o", "RequestTTY=force", remoteServer, RemotePluginUtils.buildRemoteTailCmd(logFilePath))
             spec.standardOutput = System.out
             spec.errorOutput = System.err
         }

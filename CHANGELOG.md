@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.4] - 2026-02-05
+
+### Fixed
+- **TTY and Sudo Support**: Added `-tt` and `RequestTTY=force` to `RemotePublishTask` and `RemoteLogTask`. This ensures that remote commands requiring a terminal (like `sudo`) can correctly prompt for passwords and execute in non-interactive environments like Gradle.
+- **SSH Command Standardization**: Unified the SSH command internal execution logic across all tasks for better reliability.
+
+## [2.0.3] - 2026-02-05
+
+### Fixed
+- **Configuration Cache Regression**: Resolved a critical issue where `Task.project` was accessed at execution time in `RemotePublishTask`. The plugin is now fully compatible with the Gradle Configuration Cache by pre-calculating environment properties and using safe task dependency modeling.
+- **Lazy Task Dependency**: Refactored `bootJar` dependency logic to use standard Gradle `TaskCollection` APIs, avoiding execution-time context violations.
+
+## [2.0.2] - 2026-02-05
+
+### Fixed
+- **Subproject Path Resolution**: Fixed a critical bug where the `publish` task failed in multi-module projects with nested structures (e.g., `services/module-a`). The plugin now correctly identifies the subproject's own directory instead of assuming it is a direct child of the root project.
+- **Service Environment Context**: Unified `SERVICE_DIR` environment variable to use the actual subproject path, ensuring consistency for all remote tasks.
+
 ## [2.0.1] - 2026-02-04
 
 ### Fixed
