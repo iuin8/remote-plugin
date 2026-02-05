@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.6] - 2026-02-05
+
+### Added
+- **Configurable Build Task**: Added support for specifying a custom build task in `remote.yml` via `start.build_task`. Defaults to `bootJar` if not specified.
+
 ## [2.0.5] - 2026-02-05
 
 ### Changed

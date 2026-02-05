@@ -14,6 +14,7 @@ common:
       JAVA_TOOL_OPTIONS: -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:3${SERVICE_PORT}
     start:
       command: sudo systemctl restart $SERVICE_NAME
+      build_task: build
     log:
       filePattern: ${REMOTE_BASE_DIR}/../logs/${service}.log
     ssh:

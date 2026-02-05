@@ -42,7 +42,9 @@ class RemotePlugin : Plugin<Project> {
         sub.tasks.register("${profile}_publish", RemotePublishTask::class.java) { t ->
             configureBaseTask(t, groupName, profile, sub)
             t.dependsOn(preCheck)
-            RemotePluginUtils.configureTaskToDependOnBuild(sub, t)
+            val envProps = ConfigMerger.getEnvProperties(sub.rootProject, profile)
+            val buildTaskName = envProps["start.build_task"]?.toString() ?: "bootJar"
+            RemotePluginUtils.configureTaskToDependOnBuild(sub, t, buildTaskName)
         }
 
         // 3. Operational Tasks

@@ -199,11 +199,11 @@ object RemotePluginUtils {
 
 
     /**
-     * 配置任务依赖于 build 任务
+     * 配置任务依赖于指定的构建任务（默认为 bootJar）
      */
-    fun configureTaskToDependOnBuild(sub: Project, task: Task) {
+    fun configureTaskToDependOnBuild(sub: Project, task: Task, taskName: String = "bootJar") {
         // 直接将 TaskCollection 传入 dependsOn，Gradle 会自动处理延迟注册的任务
-        task.dependsOn(sub.tasks.matching { it.name == "build" })
+        task.dependsOn(sub.tasks.matching { it.name == taskName })
         
         // 只有存在 build 任务时才执行
         if (task is BaseRemoteTask) {

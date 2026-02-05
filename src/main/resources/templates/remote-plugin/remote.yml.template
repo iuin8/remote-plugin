@@ -54,6 +54,7 @@ common:
     start:
       # command: ${REMOTE_BASE_DIR}/${SERVICE_NAME}/${SERVICE_NAME}-start.sh
       command: sudo systemctl restart ${SERVICE_NAME}
+      # build_task: bootJar  # 构建任务名称，默认为 bootJar
     log:
       filePattern: ${REMOTE_BASE_DIR}/../logs/${service}.log
     service_ports:
