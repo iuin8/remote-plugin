@@ -1,14 +1,15 @@
-# Remote Exec Plugin (v1.4.4)
+# Remote Exec Plugin (v2.0.1)
 
 `io.github.iuin8.remote` is a Gradle plugin designed to simplify deployment pipelines by executing local and remote shell commands.
 
 ## Features
-- **High Performance**: Pre-emptive configuration loading with zero redundancy.
+- **High Performance (v2.0.0)**: Fully compatible with Gradle **Configuration Cache**. Features lazy property resolution to significantly reduce build times for subsequent executions.
+- **Generalized YAML Parser**: Robust stack-based YAML parser supporting complex nested structures, list-style environment definitions, and intelligent `service_ports` remapping.
 - **Production Safety**: Smart confirmation prompts for production environments (`prod`).
 - **Clean Output**: Optimized logging levels for a noise-free console experience.
 - **Environment Grouping**: Tasks are automatically grouped by environment (e.g., `remote-prod`) to prevent list overload.
 - **Zero-Config SSH**: Automatic SSH configuration and key management for project isolation.
-- **Remote Execution**: Execute shell commands on remote servers via SSH with PTY support.
+- **Robust Interaction (v2.0.1)**: Interactive tasks (Arthas/Debug) handle session terminations gracefully, preventing Gradle from crashing on exit.
 - **Jenkins Integration**: Deep integration including user-triggered info and automated build logic.
 
 ## Installation
@@ -17,26 +18,11 @@ Using the plugins DSL:
 
 ```groovy
 plugins {
-  id "io.github.iuin8.remote" version "1.4.4"
+  id "io.github.iuin8.remote" version "2.0.1"
 }
 ```
 
-Using legacy plugin application:
-
-```groovy
-buildscript {
-  repositories {
-    maven {
-      url "https://plugins.gradle.org/m2/"
-    }
-  }
-  dependencies {
-    classpath "io.github.iuin8:remote-plugin:0.1.37"
-  }
-}
-
-apply plugin: "io.github.iuin8.remote"
-```
+Refer to the [Gradle Plugin Portal](https://plugins.gradle.org/plugin/io.github.iuin8.remote) for more details.
 
 ## Basic Usage
 

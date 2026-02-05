@@ -39,3 +39,20 @@ graph TD
 - **Permissions**: Automatically sets `700` for directories and `600` for config/key files.
 - **Atomicity**: Uses move-to-replace strategy with `.tmp` files to prevent configuration corruption during writes.
 - **Automation**: One-time setup; works "unfelt" after the first run.
+
+## Performance Architecture (v2.0.0+)
+
+### 1. Configuration Cache Compatibility
+The 2.0.0 refactor transitioned all configurations to Gradle's **Configuration Cache** friendly APIs.
+- **Lazy Resolution**: All task properties use `Property<T>` or `MapProperty<K, V>`.
+- **Pre-emptive Parsing**: Configuration is parsed during the configuration phase, but its values are only computed on-demand during execution, allowing Gradle to serialize the task state without storing live references to the `Project` object.
+
+### 2. Generalized YAML Parser
+`ConfigMerger` employs a recursive stack-based parser to handle multi-level inheritance and overrides.
+- **Service Port Remapping**: Automatically scans any configuration level for `service_ports` and remaps found entries to the top-level namespace (e.g., `service_ports.submodule_name`).
+- **Environment Lists**: Supports defining multiple environments in a list-style YAML format, simplifying large scale configuration files.
+
+### 3. Stability & Interaction (v2.0.1+)
+Interactive tasks (`Arthas`, `Debug`, `Restart`) are designed to be "exit-safe":
+- **Ignore Exit Value**: Tasks are configured to ignore non-zero exit codes from SSH sessions, ensuring that intentional termination by the user does not trigger a Gradle build failure.
+- **Standardized Wrapping**: All interactive commands use a unified `wrapRemoteCommand` logic to ensure consistent PTY handling and environment context (`su - user`, `bash -lc`).

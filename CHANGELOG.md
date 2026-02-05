@@ -2,7 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
-## [1.4.8] - 2026-01-23
+## [2.0.1] - 2026-02-04
+
+### Fixed
+- **Interactive Task Stability**: Added `isIgnoreExitValue` to interactive tasks (`arthas`, `debug`, `restart`). This prevents the Gradle build from failing with non-zero exit codes (like 255 or 130) when an interactive session is terminated (e.g., via Ctrl+C) or when a remote connection drops.
+- **Arthas Environment Sync**: Standardized `RemoteArthasTask` to use the unified command wrapping logic, ensuring correct user switching (`su - user`) and environment variable loading.
+
+## [2.0.0] - 2026-02-04
+
+### Added
+- **Configuration Cache Support**: Refactored the entire plugin to be fully compatible with the Gradle Configuration Cache. All tasks now use lazy `Property` and `MapProperty` for configuration, ensuring significantly faster subsequent builds.
+- **Generalized YAML Parser**: Replaced the previous simplified parser with a robust, stack-based YAML parser in `ConfigMerger.kt`. It now supports complex nested structures, list-style environment definitions, and intelligent `service_ports` remapping.
+- **Dynamic Task Registration**: Redesigned task registration to be fully dynamic based on the scanned configuration, improving plugin startup performance and reducing coupling.
+
+### Changed
+- **Modern Kotlin Standards**: Updated codebase to use modern Kotlin APIs (e.g., `lowercase()`) and improved type safety with reduced compiler warnings.
+- **Clean Architecture**: Decoupled task logic from plugin application, resulting in a more maintainable and elegant codebase.
+- **Removed Legacy Artifacts**: Cleaned up unused methods (like `envLoad`) and internal diagnostic prints to provide a production-ready console experience.
+
 
 ### Fixed
 - **Configuration Deep Merge**: Implemented a deep merge utility to ensure that settings in `remote-local.yml` do not overwrite entire configuration blocks (like `common.base`) from `remote.yml`. This fixes the issue where port mappings and other defaults were lost when local overrides were present.

@@ -1,4 +1,4 @@
-# Gradle Remote Plugin 使用指南 (v1.4.4)
+# Gradle Remote Plugin 使用指南 (v2.0.1)
 
 [English Documentation](README.md) | [Changelog](CHANGELOG.md)
 
@@ -6,10 +6,11 @@
 
 ## 1. 核心特性
 
-- **高性能加载**：配置前置预加载，整个构建生命周期内 `remote.yml` 仅加载一次，零冗余开销。
+- **高性能架构 (v2.0.0)**：完全适配 Gradle **Configuration Cache**，配置项采用延迟解析，大幅缩短后续构建时间。整个构建生命周期内 `remote.yml` 仅按需加载，零冗余开销。
+- **通用 YAML 解析器**：内置强大的栈式 YAML 解析逻辑，支持复杂的嵌套结构及环境列表定义，智能自动映射 `service_ports`。
 - **生产环境防护**：智能识别 `prod` 环境，执行敏感任务前自动弹出安全确认提醒。
 - **免配置 SSH 增强**：自动管理项目级 SSH 配置与密钥，支持 PTY 仿真以显示远程进度条。
-- **极致简洁输出**：默认仅显示核心进度，初始化及背景日志已移至 DEBUG 级别。
+- **卓越交互体验 (v2.0.1)**：交互式任务（Arthas/Debug）增加退出容错，会话正常结束或中断不会导致 Gradle 构建报错。
 - **环境任务分组**：任务按环境（如 `remote-prod`、`remote-test`）自动分组，防止 IDE 任务列表过载。
 - **Jenkins 深度集成**：支持触发构建、查看状态、追踪提交记录及显示触发者信息。
 
@@ -19,7 +20,7 @@
 
 ```groovy
 plugins {
-    id 'io.github.iuin8.remote' version '1.4.4'
+    id 'io.github.iuin8.remote' version '2.0.1'
 }
 ```
 
