@@ -42,7 +42,7 @@ class RemotePlugin : Plugin<Project> {
         sub.tasks.register("${profile}_publish", RemotePublishTask::class.java) { t ->
             configureBaseTask(t, groupName, profile, sub)
             t.dependsOn(preCheck)
-            RemotePluginUtils.configureTaskToDependOnBootJar(sub, t)
+            RemotePluginUtils.configureTaskToDependOnBuild(sub, t)
         }
 
         // 3. Operational Tasks

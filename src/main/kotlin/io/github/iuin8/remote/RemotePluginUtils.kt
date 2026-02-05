@@ -199,22 +199,17 @@ object RemotePluginUtils {
 
 
     /**
-     * 配置任务依赖于bootJar任务（如果存在）
-     * 1. 设置任务只在bootJar任务存在时执行
-     * 2. 对于Exec类型任务，添加对bootJar任务的依赖关系
+     * 配置任务依赖于 build 任务
      */
-    fun configureTaskToDependOnBootJar(sub: Project, task: Task) {
+    fun configureTaskToDependOnBuild(sub: Project, task: Task) {
         // 直接将 TaskCollection 传入 dependsOn，Gradle 会自动处理延迟注册的任务
-        // 且这种方式比 .all {} 更符合 Gradle 惰性配置规范，避免了执行上下文冲突
-        task.dependsOn(sub.tasks.matching { it.name == "bootJar" })
+        task.dependsOn(sub.tasks.matching { it.name == "build" })
         
-        // 只有存在 bootJar 任务时才执行
-        // 使用针对任务属性的逻辑检查，避免在执行期捕获或访问 Project 对象
+        // 只有存在 build 任务时才执行
         if (task is BaseRemoteTask) {
             task.onlyIf {
                 val dir = task.projectDir.get()
-                // 检查 build/libs 目录是否存在，这是一个间接但对配置缓存友好的判断方式
-                // 也可以不加这个 onlyIf，让任务在执行时通过内部逻辑报错，更直接
+                // 检查 build/libs 目录是否存在 (如果是 java/boot 项目通常会有这个目录)
                 File(dir, "build/libs").exists()
             }
         }

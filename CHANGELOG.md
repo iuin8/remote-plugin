@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.5] - 2026-02-05
+
+### Changed
+- **Task Dependency Refactoring**: Changed the default task dependency for `publish` task from `bootJar` to `build`. This provides better support for a wider range of project types while still ensuring artifacts are generated before publication.
+
 ## [2.0.4] - 2026-02-05
 
 ### Fixed
