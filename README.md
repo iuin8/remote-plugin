@@ -1,4 +1,4 @@
-# Remote Exec Plugin (v2.0.6)
+# Remote Exec Plugin (v2.0.7)
 
 `io.github.iuin8.remote` is a Gradle plugin designed to simplify deployment pipelines by executing local and remote shell commands.
 
@@ -18,7 +18,7 @@ Using the plugins DSL:
 
 ```groovy
 plugins {
-  id "io.github.iuin8.remote" version "2.0.6"
+  id "io.github.iuin8.remote" version "2.0.7"
 }
 ```
 

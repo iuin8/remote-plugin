@@ -70,8 +70,8 @@ abstract class RemotePreCheckTask @Inject constructor(
     
     @TaskAction
     fun run() {
-        // 预检查逻辑主要在 whenReady 中通过 checkConfirmation 执行
-        // 这里可以添加其他运行时检查
+        // 运行时再次检查和修复私钥权限，作为双重保障
+        SshSetupManager.fixPrivateKeyPermissions(rootDir.get())
     }
 }
 

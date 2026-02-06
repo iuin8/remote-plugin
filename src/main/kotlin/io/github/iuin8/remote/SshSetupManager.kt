@@ -219,7 +219,7 @@ object SshSetupManager {
     /**
      * 修复私钥文件权限
      */
-    private fun fixPrivateKeyPermissions(projectRootDir: File) {
+    fun fixPrivateKeyPermissions(projectRootDir: File) {
         val sshDir = File(projectRootDir, "gradle/remote-plugin/.ssh")
         
         if (!sshDir.exists() || !sshDir.isDirectory) {

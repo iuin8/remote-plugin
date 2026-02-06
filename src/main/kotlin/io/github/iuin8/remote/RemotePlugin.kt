@@ -17,6 +17,9 @@ class RemotePlugin : Plugin<Project> {
         val environments = scannedConfig.environments
         val configuredServices = scannedConfig.configuredServices
         
+        // Setup SSH setup and fix permissions
+        SshSetupManager.setupProjectSsh(project.rootDir)
+        
         // Setup central SSH config
         SshConfigManager.setupSshConfig(project.rootDir, project.name)
 

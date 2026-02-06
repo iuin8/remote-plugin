@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.7] - 2026-02-06
+
+### Fixed
+- **SSH Key Permissions**: Re-enabled automatic detection and fixing of SSH private key permissions (chmod 600). The check now runs during both configuration and execution (via pre-check task) to ensure keys are never ignored by SSH due to being "too open".
+
 ## [2.0.6] - 2026-02-05
 
 ### Added
