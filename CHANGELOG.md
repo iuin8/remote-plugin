@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.9] - 2026-02-06
+
+### Changed
+- **Further TTY Refinement**: Disabled default forced TTY (`-tt`) for `debug` and `log` tasks as well. Only `arthas` retains default TTY for its interactive terminal interface. This ensures `debug` (which often starts background processes) and `log` tasks are more stable across different SSH environments.
+
+## [2.0.8] - 2026-02-06
+
+### Changed
+- **SSH TTY Refactor**: Removed default forced TTY (`-tt`) for `publish` and `restart` tasks. This prevents background processes (started via `nohup`) from being killed when the SSH session closes.
+- **Interactive Tasks**: `debug`, `arthas`, and `log` tasks continue to use TTY by default to ensure proper interaction and signal handling.
+- **New Configuration**: Added `ssh.use_tty` option in `remote.yml` to allow users to manually enable/disable TTY per environment if needed.
+
 ## [2.0.7] - 2026-02-06
 
 ### Fixed

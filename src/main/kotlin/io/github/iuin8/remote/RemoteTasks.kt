@@ -60,6 +60,42 @@ abstract class BaseRemoteTask @Inject constructor(
         }
         spec.environment(envMap)
     }
+
+    /**
+     * 执行 SSH 命令，支持可选的伪终端 (TTY)
+     */
+    protected fun executeSsh(
+        remoteServer: String,
+        command: String,
+        useTtyDefault: Boolean = false,
+        ignoreExitValue: Boolean = false,
+        interactive: Boolean = false
+    ) {
+        val extra = getExtra()
+        // 优先使用配置中的 ssh.use_tty，否则使用默认值
+        val forceTty = extra["ssh.use_tty"]?.toString()?.toBoolean() ?: useTtyDefault
+        
+        val args = mutableListOf("ssh")
+        if (forceTty) {
+            // -tt 强制分配伪终端，即使没有本地终端
+            // RequestTTY=force 进一步确保 TTY 分配
+            args.addAll(listOf("-tt", "-o", "SendEnv=TERM", "-o", "RequestTTY=force"))
+        }
+        
+        args.add(remoteServer)
+        args.add(command)
+        
+        println("[cmd] ${args.joinToString(" ")}")
+        
+        execOperations.exec { spec ->
+            applyCommonEnv(spec)
+            spec.commandLine(args)
+            spec.isIgnoreExitValue = ignoreExitValue
+            if (interactive) {
+                spec.standardInput = System.`in`
+            }
+        }
+    }
 }
 
 abstract class RemotePreCheckTask @Inject constructor(
@@ -116,21 +152,13 @@ abstract class RemotePublishTask @Inject constructor(
         val sshUser = extra["ssh.user"]?.toString() ?: ""
         if (sshUser.isNotBlank()) {
             val chownTarget = "$remoteBaseDir/$sName/$sName-*.jar"
-            println("[cmd] ssh $remoteServer bash -lc 'chown $sshUser:$sshUser $chownTarget'")
-            execOperations.exec { spec ->
-                spec.environment("RP_PROJECT_ROOT_PATH", rDir.absolutePath)
-                spec.commandLine("ssh", "-tt", "-o", "SendEnv=TERM", "-o", "RequestTTY=force", remoteServer, "bash -lc 'chown $sshUser:$sshUser $chownTarget'")
-            }
+            executeSsh(remoteServer, "bash -lc 'chown $sshUser:$sshUser $chownTarget'", useTtyDefault = false)
         }
 
         val startCmd = RemotePluginUtils.resolveStartCommand(extra, remoteBaseDir, sName, servicePort)
         val remoteCmd = RemotePluginUtils.wrapRemoteCommand(startCmd, sshUser)
         
-        println("[cmd] ssh $remoteServer $remoteCmd")
-        execOperations.exec { spec ->
-            applyCommonEnv(spec, servicePort)
-            spec.commandLine("ssh", "-tt", "-o", "SendEnv=TERM", "-o", "RequestTTY=force", remoteServer, remoteCmd)
-        }
+        executeSsh(remoteServer, remoteCmd, useTtyDefault = false)
         
         println("[publish] $sName 发布脚本执行完成")
     }
@@ -158,15 +186,7 @@ abstract class RemoteDebugTask @Inject constructor(
         val sshUser = extra["ssh.user"]?.toString() ?: ""
         val remoteCmd = RemotePluginUtils.wrapRemoteCommand(full, sshUser)
         
-        println("[cmd] ssh -tt -o SendEnv=TERM -o RequestTTY=force $remoteServer $remoteCmd")
-        execOperations.exec { spec ->
-            applyCommonEnv(spec)
-            spec.isIgnoreExitValue = true
-            spec.commandLine("ssh", "-tt", "-o", "SendEnv=TERM", "-o", "RequestTTY=force", remoteServer, remoteCmd)
-            spec.standardInput = System.`in`
-            spec.standardOutput = System.out
-            spec.errorOutput = System.err
-        }
+        executeSsh(remoteServer, remoteCmd, useTtyDefault = false, interactive = true, ignoreExitValue = true)
         println("[debug] $sName 调试脚本执行完成")
     }
 }
@@ -190,14 +210,7 @@ abstract class RemoteArthasTask @Inject constructor(
         val sshUser = extra["ssh.user"]?.toString() ?: ""
         val remoteCmd = RemotePluginUtils.wrapRemoteCommand(cmd, sshUser)
         
-        execOperations.exec { spec ->
-            applyCommonEnv(spec, servicePort)
-            spec.isIgnoreExitValue = true
-            spec.commandLine("ssh", "-tt", "-o", "SendEnv=TERM", "-o", "RequestTTY=force", remoteServer, remoteCmd)
-            spec.standardInput = System.`in`
-            spec.standardOutput = System.out
-            spec.errorOutput = System.err
-        }
+        executeSsh(remoteServer, remoteCmd, useTtyDefault = true, interactive = true, ignoreExitValue = true)
     }
 }
 
@@ -220,14 +233,7 @@ abstract class RemoteLogTask @Inject constructor(
         println("找到服务 $sName")
         println("正在通过SSH连接到 $remoteServer 并开始打印服务 $sName 的日志 $logFilePath")
         
-        execOperations.exec { spec ->
-            spec.environment("RP_PROJECT_ROOT_PATH", rootDir.get().absolutePath)
-            spec.environment("TERM", "xterm")
-            spec.isIgnoreExitValue = true
-            spec.commandLine("ssh", "-tt", "-o", "SendEnv=TERM", "-o", "RequestTTY=force", remoteServer, RemotePluginUtils.buildRemoteTailCmd(logFilePath))
-            spec.standardOutput = System.out
-            spec.errorOutput = System.err
-        }
+        executeSsh(remoteServer, RemotePluginUtils.buildRemoteTailCmd(logFilePath), useTtyDefault = false, ignoreExitValue = true)
         println("日志流结束")
     }
 }
@@ -251,15 +257,7 @@ abstract class RemoteRestartTask @Inject constructor(
         val sshUser = extra["ssh.user"]?.toString() ?: ""
         val remoteCmd = RemotePluginUtils.wrapRemoteCommand(startCmd, sshUser)
         
-        println("[cmd] ssh -tt -o SendEnv=TERM -o RequestTTY=force $remoteServer $remoteCmd")
-        execOperations.exec { spec ->
-            applyCommonEnv(spec)
-            spec.isIgnoreExitValue = true
-            spec.commandLine("ssh", "-tt", "-o", "SendEnv=TERM", "-o", "RequestTTY=force", remoteServer, remoteCmd)
-            spec.standardInput = System.`in`
-            spec.standardOutput = System.out
-            spec.errorOutput = System.err
-        }
+        executeSsh(remoteServer, remoteCmd, useTtyDefault = false, ignoreExitValue = true, interactive = true)
     }
 }
 

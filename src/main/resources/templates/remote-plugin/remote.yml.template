@@ -61,6 +61,7 @@ common:
         app: 8080
     ssh:
       user: www  # 远程执行命令的用户，不配置则使用当前 SSH 用户
+      use_tty: false  # 是否强制分配伪终端，默认逻辑已智能处理，一般无需配置
       setup:
         auto:
           keygen: false  # 是否自动生成密钥，默认 false
