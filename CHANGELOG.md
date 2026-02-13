@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.10] - 2026-02-13
+
+### Changed
+- **SSH Config Optimization**: Refined the automatic SSH configuration to use the specific path `~/.ssh/gradle/remote-plugin/config` instead of a wildcard. This prevents SSH from scanning subdirectories (like `projects/`) and improves stability by avoiding potential directory scanning errors.
+
 ## [2.0.9] - 2026-02-06
 
 ### Changed

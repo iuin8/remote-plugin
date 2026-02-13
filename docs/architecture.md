@@ -30,7 +30,7 @@ graph TD
 - Files are named with a hash of the project's absolute path to avoid collisions between projects with the same name.
 
 #### 3. Integration Logic
-- **Primary Include**: Injects `Include ~/.ssh/gradle/remote-plugin/*` into the very top of `~/.ssh/config`.
+- **Primary Include**: Injects `Include ~/.ssh/gradle/remote-plugin/config` into the very top of `~/.ssh/config`.
 - **Secondary Include**: The aggregate file `~/.ssh/gradle/remote-plugin/config` includes all the individual project resolved configs.
 - **Environment Injection**: Tasks (like `publish`) also receive `RP_PROJECT_ROOT_PATH` to handle cases where tools might try to resolve the variable themselves from the environment.
 
