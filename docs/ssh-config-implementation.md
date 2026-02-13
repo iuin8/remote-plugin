@@ -37,7 +37,7 @@
 
 ```
 ~/.ssh/config (系统配置)
-  ↓ Include ~/.ssh/gradle/remote-plugin/*
+  ↓ Include ~/.ssh/gradle/remote-plugin/config
 ~/.ssh/gradle/remote-plugin/config (插件管理配置)
   ↓ Include 项目1/gradle/remote-plugin/.ssh/config
   ↓ Include 项目2/gradle/remote-plugin/.ssh/config
